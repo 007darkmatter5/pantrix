@@ -1,0 +1,15 @@
+@typeparam TEnum where TEnum : struct, Enum
+
+<MudSelect T="TEnum" Value="Value" ValueChanged="ValueChanged" Label="@Label" Class="@Class" RelativeWidth="DropdownWidth.Adaptive">
+    @foreach (var option in Enum.GetValues<TEnum>())
+    {
+        <MudSelectItem T="TEnum" Value="option">@option.Humanize()</MudSelectItem>
+    }
+</MudSelect>
+
+@code {
+    [Parameter] public TEnum Value { get; set; }
+    [Parameter] public EventCallback<TEnum> ValueChanged { get; set; }
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string? Class { get; set; }
+}

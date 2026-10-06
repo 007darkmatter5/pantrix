@@ -1,0 +1,69 @@
+@page "/account/login"
+@layout AccountLayout
+@attribute [ExcludeFromInteractiveRouting]
+@attribute [AllowAnonymous]
+@inject AccountService Accounts
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in - Pantrix</PageTitle>
+
+<h1>Pantrix</h1>
+<p>Sign in to continue.</p>
+
+@if (_error is not null)
+{
+    <p class="error" role="alert">@_error</p>
+}
+
+<EditForm Model="Input" FormName="login" OnSubmit="SignInAsync" method="post">
+    <label>
+        Username
+        <InputText @bind-Value="Input.UserName" autocomplete="username" autofocus />
+    </label>
+    <label>
+        Password
+        <InputText @bind-Value="Input.Password" type="password" autocomplete="current-password" />
+    </label>
+    <button type="submit">Sign in</button>
+</EditForm>
+
+@code {
+    private string? _error;
+
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = null!;
+    [SupplyParameterFromForm] private Credentials Input { get; set; } = null!;
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new Credentials();
+
+        // A fresh install has nobody to sign in as yet.
+        if (!await Accounts.AnyUsersAsync())
+        {
+            Navigation.NavigateTo("account/setup");
+        }
+    }
+
+    private async Task SignInAsync()
+    {
+        var (outcome, user) = await Accounts.CheckPasswordAsync(Input.UserName, Input.Password);
+        if (user is null)
+        {
+            _error = outcome == SignInOutcome.LockedOut
+                ? "Too many wrong passwords. Wait a few minutes and try again."
+                : "That username and password don't match.";
+            Input.Password = "";
+            return;
+        }
+
+        await HttpContext.SignInAsync(AccountService.ToPrincipal(user), new AuthenticationProperties { IsPersistent = true });
+        Navigation.NavigateTo(AccountService.SafeReturnUrl(ReturnUrl));
+    }
+
+    private sealed class Credentials
+    {
+        public string? UserName { get; set; }
+        public string? Password { get; set; }
+    }
+}

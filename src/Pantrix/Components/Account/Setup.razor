@@ -1,0 +1,81 @@
+@page "/account/setup"
+@layout AccountLayout
+@attribute [ExcludeFromInteractiveRouting]
+@attribute [AllowAnonymous]
+@inject AccountService Accounts
+@inject NavigationManager Navigation
+
+<PageTitle>Set up - Pantrix</PageTitle>
+
+<h1>Welcome to Pantrix</h1>
+<p>Create the username and password you'll sign in with.</p>
+
+@if (_error is not null)
+{
+    <p class="error" role="alert">@_error</p>
+}
+
+<EditForm Model="Input" FormName="setup" OnSubmit="CreateAsync" method="post">
+    <label>
+        Username
+        <InputText @bind-Value="Input.UserName" autocomplete="username" autofocus />
+    </label>
+    <label>
+        Password (at least @AccountService.MinimumPasswordLength characters)
+        <InputText @bind-Value="Input.Password" type="password" autocomplete="new-password" />
+    </label>
+    <label>
+        Password again
+        <InputText @bind-Value="Input.ConfirmPassword" type="password" autocomplete="new-password" />
+    </label>
+    <button type="submit">Create account</button>
+</EditForm>
+
+@code {
+    private string? _error;
+
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = null!;
+    [SupplyParameterFromForm] private NewAccount Input { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new NewAccount();
+
+        // Setup is only for a fresh install; afterwards this page must not let a stranger add an account.
+        if (await Accounts.AnyUsersAsync())
+        {
+            Navigation.NavigateTo("account/login");
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (await Accounts.AnyUsersAsync())
+        {
+            return;
+        }
+
+        if (Input.Password != Input.ConfirmPassword)
+        {
+            _error = "The two passwords don't match.";
+            return;
+        }
+
+        var (user, error) = await Accounts.CreateAsync(Input.UserName, Input.Password);
+        if (user is null)
+        {
+            _error = error;
+            return;
+        }
+
+        await HttpContext.SignInAsync(AccountService.ToPrincipal(user), new AuthenticationProperties { IsPersistent = true });
+        Navigation.NavigateTo("/");
+    }
+
+    private sealed class NewAccount
+    {
+        public string? UserName { get; set; }
+        public string? Password { get; set; }
+        public string? ConfirmPassword { get; set; }
+    }
+}

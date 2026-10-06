@@ -1,0 +1,84 @@
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <IngredientPicker Value="_ingredient" ValueChanged="OnIngredientChanged" Ingredients="_ingredients" />
+            <EnumSelect TEnum="StorageLocation" @bind-Value="_location" Label="Location" Class="mt-3" />
+            <MudGrid Spacing="4" Class="mt-0">
+                <MudItem xs="6">
+                    <MudNumericField T="decimal" @bind-Value="_quantity" Label="Quantity" Min="0" Step="0.5m" />
+                </MudItem>
+                <MudItem xs="6">
+                    <EnumSelect TEnum="Unit" @bind-Value="_unit" Label="Unit" />
+                </MudItem>
+            </MudGrid>
+            <MudDatePicker @bind-Date="_expiresOn" Label="Expires" Clearable="true" Class="mt-3" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private MudForm _form = null!;
+    private List<Ingredient> _ingredients = [];
+    private Ingredient? _ingredient;
+    private StorageLocation _location = StorageLocation.Refrigerator;
+    private decimal _quantity = 1;
+    private Unit _unit;
+    private DateTime? _expiresOn;
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    /// <summary>The item to edit, or null to create a new one.</summary>
+    [Parameter] public InventoryItem? Item { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _ingredients = await db.Ingredients.AsNoTracking().OrderBy(i => i.Name).ToListAsync();
+
+        if (Item is not null)
+        {
+            _ingredient = _ingredients.FirstOrDefault(i => i.Id == Item.IngredientId);
+            _location = Item.Location;
+            _quantity = Item.Quantity;
+            _unit = Item.Unit;
+            _expiresOn = Item.ExpiresOn?.ToDateTime(TimeOnly.MinValue);
+        }
+    }
+
+    private void OnIngredientChanged(Ingredient? ingredient)
+    {
+        _ingredient = ingredient;
+        if (ingredient is not null)
+        {
+            _unit = ingredient.DefaultUnit;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid || _ingredient is null)
+        {
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.Update(new InventoryItem
+        {
+            Id = Item?.Id ?? 0,
+            IngredientId = _ingredient.Id,
+            Location = _location,
+            Quantity = _quantity,
+            Unit = _unit,
+            ExpiresOn = _expiresOn is null ? null : DateOnly.FromDateTime(_expiresOn.Value)
+        });
+        await db.SaveChangesAsync();
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+}

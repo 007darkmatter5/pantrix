@@ -1,0 +1,68 @@
+@page "/meal-plans"
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+
+<PageTitle>Meal plans</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Meal plans</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateAsync">New meal plan</MudButton>
+</MudStack>
+
+<MudTable Items="_plans" Hover="true" Dense="true">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Dates</MudTh>
+        <MudTh>Meals</MudTh>
+        <MudTh></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd><MudLink Href="@($"meal-plans/{context.Id}")">@context.Name</MudLink></MudTd>
+        <MudTd>@context.StartDate.ToString("MMM d") – @context.EndDate.ToString("MMM d, yyyy")</MudTd>
+        <MudTd>@context.Entries.Count</MudTd>
+        <MudTd Style="text-align: right">
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" aria-label="Delete" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No meal plans yet.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private List<MealPlan> _plans = [];
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _plans = await db.MealPlans.AsNoTracking().Include(p => p.Entries).OrderByDescending(p => p.StartDate).ToListAsync();
+    }
+
+    private async Task CreateAsync()
+    {
+        var dialog = await DialogService.ShowAsync<MealPlanDialog>("New meal plan");
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: MealPlan plan })
+        {
+            Navigation.NavigateTo($"meal-plans/{plan.Id}");
+        }
+    }
+
+    private async Task DeleteAsync(MealPlan plan)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete meal plan", $"Delete \"{plan.Name}\"?", yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        await db.MealPlans.Where(p => p.Id == plan.Id).ExecuteDeleteAsync();
+        await LoadAsync();
+    }
+}

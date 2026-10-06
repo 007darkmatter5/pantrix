@@ -1,0 +1,54 @@
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="_name" Label="Name" Required="true" RequiredError="Name is required" AutoFocus="true" />
+            <MudStack Row="true" Class="mt-3">
+                <MudDatePicker @bind-Date="_start" Label="First day" Required="true" />
+                <MudDatePicker @bind-Date="_end" Label="Last day" Required="true" />
+            </MudStack>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Create</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private MudForm _form = null!;
+    private string _name = $"Week of {DateTime.Today:MMM d}";
+    private DateTime? _start = DateTime.Today;
+    private DateTime? _end = DateTime.Today.AddDays(6);
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private async Task SaveAsync()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid || _start is null || _end is null)
+        {
+            return;
+        }
+
+        if (_end < _start)
+        {
+            Snackbar.Add("The last day can't be before the first day.", Severity.Error);
+            return;
+        }
+
+        var plan = new MealPlan
+        {
+            Name = _name.Trim(),
+            StartDate = DateOnly.FromDateTime(_start.Value),
+            EndDate = DateOnly.FromDateTime(_end.Value)
+        };
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.MealPlans.Add(plan);
+        await db.SaveChangesAsync();
+        MudDialog.Close(DialogResult.Ok(plan));
+    }
+}

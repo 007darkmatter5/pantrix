@@ -1,0 +1,27 @@
+@inherits LayoutComponentBase
+
+@* The sign-in pages are plain server-rendered HTML: signing in has to set a cookie on a normal web request,
+   which the interactive part of the app can't do. So they carry their own small stylesheet. *@
+<style>
+    :root { --bg: #f5f5f5; --card: #fff; --text: #212121; --muted: #616161; --line: #bdbdbd; --primary: #594ae2; --error: #c62828; }
+    :root.dark { --bg: #1a1a27; --card: #32333d; --text: #ececec; --muted: #b0b0b8; --line: #5c5d6a; --primary: #8f84f0; --error: #ff8a80; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: Roboto, Helvetica, Arial, sans-serif; }
+    .account { max-width: 380px; margin: 12vh auto 0; padding: 32px; background: var(--card); border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, .2); }
+    .account h1 { margin: 0 0 4px; font-size: 1.6rem; font-weight: 500; }
+    .account p { margin: 0 0 20px; color: var(--muted); }
+    .account label { display: block; margin-bottom: 16px; font-size: .85rem; color: var(--muted); }
+    .account input { display: block; box-sizing: border-box; width: 100%; margin-top: 4px; padding: 10px 12px; font-size: 1rem;
+        color: var(--text); background: transparent; border: 1px solid var(--line); border-radius: 4px; }
+    .account input:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
+    .account button { width: 100%; padding: 10px; font-size: 1rem; font-weight: 500; color: #fff; background: var(--primary);
+        border: 0; border-radius: 4px; cursor: pointer; }
+    .account .error { color: var(--error); }
+    @@media (max-width: 480px) { .account { margin: 0; min-height: 100vh; border-radius: 0; box-sizing: border-box; } }
+</style>
+<script suppress-error="BL9992">
+    try { if (localStorage.getItem('pantrix.darkMode') === 'true') document.documentElement.classList.add('dark'); } catch { }
+</script>
+
+<main class="account">
+    @Body
+</main>

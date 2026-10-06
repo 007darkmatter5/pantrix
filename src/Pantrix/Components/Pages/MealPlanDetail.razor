@@ -1,0 +1,162 @@
+@page "/meal-plans/{Id:int}"
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+@inject IDialogService DialogService
+@inject ShoppingListService ShoppingLists
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>@(_plan?.Name ?? "Meal plan")</PageTitle>
+
+@if (_notFound)
+{
+    <MudAlert Severity="Severity.Warning">That meal plan doesn't exist. <MudLink Href="meal-plans">Back to meal plans</MudLink></MudAlert>
+}
+else if (_plan is not null)
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="meal-plans" aria-label="Back to meal plans" />
+        <MudText Typo="Typo.h4">@_plan.Name</MudText>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ShoppingCart"
+                   OnClick="ViewShoppingListAsync">View shopping list</MudButton>
+    </MudStack>
+
+    var closedHeadingShown = false;
+    @foreach (var day in DaysOpenFirst())
+    {
+        var closed = _plan.ClosedDates.Contains(day);
+        var entries = _plan.Entries.Where(e => e.Date == day).OrderBy(e => e.MealType).ToList();
+        if (closed && !closedHeadingShown)
+        {
+            closedHeadingShown = true;
+            <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mt-6 mb-2">Closed out</MudText>
+        }
+
+        <MudPaper @key="day" Class="pa-4 mb-3" Style="@(closed ? "opacity: 0.7" : null)">
+            <MudStack Row="true" AlignItems="AlignItems.Center">
+                <MudText Typo="Typo.h6">@day.ToString("dddd, MMM d")</MudText>
+                <MudSpacer />
+                @if (closed)
+                {
+                    <MudButton StartIcon="@Icons.Material.Filled.Undo" OnClick="@(() => SetClosedAsync(day, false))">Reopen</MudButton>
+                }
+                else
+                {
+                    <MudButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => AddEntryAsync(day))">Add meal</MudButton>
+                    <MudButton StartIcon="@Icons.Material.Filled.Check" OnClick="@(() => SetClosedAsync(day, true))">Close out</MudButton>
+                }
+            </MudStack>
+
+            @if (closed && entries.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">Nothing planned</MudText>
+            }
+
+            @foreach (var entry in entries)
+            {
+                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mt-2">
+                    <MudChip T="string" Size="Size.Small">@entry.MealType.Humanize()</MudChip>
+                    @if (entry.Recipe is not null)
+                    {
+                        <MudLink Href="@($"recipes/{entry.RecipeId}")">@entry.Recipe.Name</MudLink>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@entry.Servings servings</MudText>
+                    }
+                    else if (entry.Ingredient is not null)
+                    {
+                        <MudText>@entry.Ingredient.Name</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@Units.Format(entry.Quantity, entry.Unit)</MudText>
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Restaurant" Size="Size.Small" />
+                        <MudText>@(entry.Note ?? "Eating out")</MudText>
+                        @if (entry.Note is not null)
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Eating out</MudText>
+                        }
+                    }
+                    <MudSpacer />
+                    @if (!closed)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => RemoveEntryAsync(entry))" aria-label="Remove from plan" />
+                    }
+                </MudStack>
+            }
+        </MudPaper>
+    }
+}
+
+@code {
+    private MealPlan? _plan;
+    private bool _notFound;
+
+    [Parameter] public int Id { get; set; }
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _plan = await db.MealPlans.AsNoTracking()
+            .Include(p => p.Entries).ThenInclude(e => e.Recipe)
+            .Include(p => p.Entries).ThenInclude(e => e.Ingredient)
+            .FirstOrDefaultAsync(p => p.Id == Id);
+        _notFound = _plan is null;
+    }
+
+    // Dates still being planned come first; closed-out dates follow, each group in calendar order.
+    private IEnumerable<DateOnly> DaysOpenFirst()
+    {
+        var days = Enumerable.Range(0, _plan!.EndDate.DayNumber - _plan.StartDate.DayNumber + 1)
+            .Select(_plan.StartDate.AddDays);
+        return days.OrderBy(_plan.ClosedDates.Contains);
+    }
+
+    private async Task SetClosedAsync(DateOnly date, bool closed)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var plan = await db.MealPlans.SingleAsync(p => p.Id == Id);
+        plan.ClosedDates.Remove(date);
+        if (closed)
+        {
+            plan.ClosedDates.Add(date);
+        }
+
+        await db.SaveChangesAsync();
+        await LoadAsync();
+    }
+
+    private async Task AddEntryAsync(DateOnly date)
+    {
+        var parameters = new DialogParameters<MealPlanEntryDialog>
+        {
+            { d => d.MealPlanId, Id },
+            { d => d.Date, date }
+        };
+        var dialog = await DialogService.ShowAsync<MealPlanEntryDialog>($"Add meal for {date:dddd, MMM d}", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task RemoveEntryAsync(MealPlanEntry entry)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        await db.MealPlanEntries.Where(e => e.Id == entry.Id).ExecuteDeleteAsync();
+        await LoadAsync();
+    }
+
+    private async Task ViewShoppingListAsync()
+    {
+        var listId = await ShoppingLists.SyncAutomaticItemsAsync();
+        if (listId is null)
+        {
+            Snackbar.Add("You already have everything your upcoming meals need.", Severity.Success);
+            return;
+        }
+
+        Navigation.NavigateTo($"shopping-lists/{listId}");
+    }
+}

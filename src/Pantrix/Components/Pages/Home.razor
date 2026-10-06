@@ -1,0 +1,66 @@
+@page "/"
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+
+<PageTitle>Pantrix</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Kitchen overview</MudText>
+
+<MudGrid>
+    @foreach (var tile in _tiles)
+    {
+        <MudItem xs="6" md="3">
+            <MudLink Href="@tile.Href" Underline="Underline.None">
+                <MudPaper Class="pa-4">
+                    <MudText Typo="Typo.h4">@tile.Count</MudText>
+                    <MudText Color="Color.Secondary">@tile.Label</MudText>
+                </MudPaper>
+            </MudLink>
+        </MudItem>
+    }
+</MudGrid>
+
+<MudText Typo="Typo.h6" Class="mt-6 mb-2">Use soon</MudText>
+@if (_expiring.Count == 0)
+{
+    <MudText Color="Color.Secondary">Nothing in your inventory expires in the next week.</MudText>
+}
+else
+{
+    <MudPaper>
+        <MudList T="string" Dense="true">
+            @foreach (var item in _expiring)
+            {
+                <MudListItem T="string" Href="inventory">
+                    @item.Ingredient.Name — @item.Location.Humanize(), @(item.ExpiresOn < _today ? "expired" : "expires") @item.ExpiresOn!.Value.ToString("MMM d")
+                </MudListItem>
+            }
+        </MudList>
+    </MudPaper>
+}
+
+@code {
+    private record Tile(string Label, int Count, string Href);
+
+    private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.Today);
+    private List<Tile> _tiles = [];
+    private List<InventoryItem> _expiring = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _tiles =
+        [
+            new Tile("Recipes", await db.Recipes.CountAsync(), "recipes"),
+            new Tile("Inventory items", await db.InventoryItems.CountAsync(), "inventory"),
+            new Tile("Meal plans", await db.MealPlans.CountAsync(), "meal-plans"),
+            new Tile("Shopping lists", await db.ShoppingLists.CountAsync(), "shopping-lists")
+        ];
+
+        var cutoff = _today.AddDays(7);
+        _expiring = await db.InventoryItems.AsNoTracking()
+            .Include(i => i.Ingredient)
+            .Where(i => i.ExpiresOn != null && i.ExpiresOn <= cutoff)
+            .OrderBy(i => i.ExpiresOn)
+            .ToListAsync();
+    }
+}

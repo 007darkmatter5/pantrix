@@ -1,0 +1,166 @@
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudRadioGroup T="MealKind" @bind-Value="_kind">
+                <MudRadio T="MealKind" Value="MealKind.Recipe" Color="Color.Primary">Recipe</MudRadio>
+                <MudRadio T="MealKind" Value="MealKind.Ingredient" Color="Color.Primary">Ingredient</MudRadio>
+                <MudRadio T="MealKind" Value="MealKind.EatingOut" Color="Color.Primary">Eating out</MudRadio>
+            </MudRadioGroup>
+
+            @switch (_kind)
+            {
+                case MealKind.Recipe:
+                    <MudAutocomplete T="Recipe" Value="_recipe" ValueChanged="OnRecipeChanged" Label="Recipe" SearchFunc="SearchRecipesAsync"
+                                     ToStringFunc="@(r => r?.Name ?? "")" Required="true" RequiredError="Pick a recipe"
+                                     ResetValueOnEmptyText="true" MaxItems="50" />
+                    <MudGrid Spacing="4" Class="mt-0">
+                        <MudItem xs="6">
+                            <EnumSelect TEnum="MealType" @bind-Value="_mealType" Label="Meal" />
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudNumericField T="int" @bind-Value="_servings" Label="Servings" Min="1" />
+                        </MudItem>
+                    </MudGrid>
+                    break;
+
+                case MealKind.Ingredient:
+                    <IngredientPicker Value="_ingredient" ValueChanged="OnIngredientChanged" Ingredients="_ingredients" />
+                    <MudGrid Spacing="4" Class="mt-0">
+                        <MudItem xs="6">
+                            <MudNumericField T="decimal" @bind-Value="_quantity" Label="Quantity" Min="0" Step="0.5m" />
+                        </MudItem>
+                        <MudItem xs="6">
+                            <EnumSelect TEnum="Unit" @bind-Value="_unit" Label="Unit" />
+                        </MudItem>
+                    </MudGrid>
+                    <EnumSelect TEnum="MealType" @bind-Value="_mealType" Label="Meal" Class="mt-3" />
+                    break;
+
+                case MealKind.EatingOut:
+                    <MudAutocomplete T="string" @bind-Value="_note" Label="What (optional)" SearchFunc="SearchNotesAsync"
+                                     CoerceValue="true" ResetValueOnEmptyText="true" MaxItems="50"
+                                     HelperText="e.g. Order pizza. Leave blank if you haven't decided." />
+                    <EnumSelect TEnum="MealType" @bind-Value="_mealType" Label="Meal" Class="mt-3" />
+                    break;
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private enum MealKind
+    {
+        Recipe,
+        Ingredient,
+        EatingOut
+    }
+
+    private MudForm _form = null!;
+    private List<Recipe> _recipes = [];
+    private List<Ingredient> _ingredients = [];
+    private List<string> _pastNotes = [];
+    private MealKind _kind;
+    private MealType _mealType = MealType.Dinner;
+
+    private Recipe? _recipe;
+    private int _servings = 4;
+
+    private Ingredient? _ingredient;
+    private decimal _quantity = 1;
+    private Unit _unit;
+
+    private string? _note;
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public int MealPlanId { get; set; }
+    [Parameter] public DateOnly Date { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _recipes = await db.Recipes.AsNoTracking().OrderBy(r => r.Name).ToListAsync();
+        _ingredients = await db.Ingredients.AsNoTracking().OrderBy(i => i.Name).ToListAsync();
+        _pastNotes = await db.MealPlanEntries
+            .Where(e => e.RecipeId == null && e.IngredientId == null && e.Note != null)
+            .Select(e => e.Note!)
+            .Distinct()
+            .OrderBy(n => n)
+            .ToListAsync();
+    }
+
+    private Task<IEnumerable<Recipe>> SearchRecipesAsync(string? text, CancellationToken cancellationToken)
+    {
+        var matches = string.IsNullOrWhiteSpace(text)
+            ? _recipes
+            : _recipes.Where(r => r.Name.Contains(text, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(matches);
+    }
+
+    private Task<IEnumerable<string>> SearchNotesAsync(string? text, CancellationToken cancellationToken)
+    {
+        var matches = string.IsNullOrWhiteSpace(text)
+            ? _pastNotes
+            : _pastNotes.Where(n => n.Contains(text, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(matches);
+    }
+
+    private void OnRecipeChanged(Recipe? recipe)
+    {
+        _recipe = recipe;
+        if (recipe is not null)
+        {
+            _servings = recipe.Servings;
+        }
+    }
+
+    private void OnIngredientChanged(Ingredient? ingredient)
+    {
+        _ingredient = ingredient;
+        if (ingredient is not null)
+        {
+            _unit = ingredient.DefaultUnit;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid)
+        {
+            return;
+        }
+
+        var entry = new MealPlanEntry { MealPlanId = MealPlanId, Date = Date, MealType = _mealType };
+        switch (_kind)
+        {
+            case MealKind.Recipe when _recipe is not null:
+                entry.RecipeId = _recipe.Id;
+                entry.Servings = _servings;
+                break;
+
+            case MealKind.Ingredient when _ingredient is not null:
+                entry.IngredientId = _ingredient.Id;
+                entry.Quantity = _quantity;
+                entry.Unit = _unit;
+                break;
+
+            case MealKind.EatingOut:
+                entry.Note = string.IsNullOrWhiteSpace(_note) ? null : _note.Trim();
+                break;
+
+            default:
+                return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.MealPlanEntries.Add(entry);
+        await db.SaveChangesAsync();
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+}

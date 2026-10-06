@@ -1,0 +1,224 @@
+@page "/recipes/new"
+@page "/recipes/{Id:int}"
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>@(Id is null ? "New recipe" : _name)</PageTitle>
+
+@if (_notFound)
+{
+    <MudAlert Severity="Severity.Warning">That recipe doesn't exist. <MudLink Href="recipes">Back to recipes</MudLink></MudAlert>
+    return;
+}
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="recipes" aria-label="Back to recipes" />
+    <MudText Typo="Typo.h4">@(Id is null ? "New recipe" : "Edit recipe")</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync">Save</MudButton>
+</MudStack>
+
+<MudForm @ref="_form">
+    <MudPaper Class="pa-4 mb-4">
+        <MudGrid>
+            <MudItem xs="12" md="8">
+                <MudTextField @bind-Value="_name" Label="Name" Required="true" RequiredError="Name is required" />
+            </MudItem>
+            <MudItem xs="4" md="2">
+                <MudNumericField T="int" @bind-Value="_servings" Label="Servings" Min="1" />
+            </MudItem>
+            <MudItem xs="4" md="1">
+                <MudNumericField T="int?" @bind-Value="_prepMinutes" Label="Prep (min)" Min="0" HideSpinButtons="true" />
+            </MudItem>
+            <MudItem xs="4" md="1">
+                <MudNumericField T="int?" @bind-Value="_cookMinutes" Label="Cook (min)" Min="0" HideSpinButtons="true" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_description" Label="Description" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_sourceUrl" Label="Source URL" />
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mb-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+            <MudText Typo="Typo.h6">Ingredients</MudText>
+            <MudSpacer />
+            <MudButton StartIcon="@Icons.Material.Filled.Egg" OnClick="CreateIngredientAsync">New ingredient</MudButton>
+            <MudButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _rows.Add(new Row()))">Add row</MudButton>
+        </MudStack>
+
+        @if (_rows.Count == 0)
+        {
+            <MudText Color="Color.Secondary">No ingredients yet.</MudText>
+        }
+
+        @foreach (var row in _rows)
+        {
+            <MudGrid @key="row" Spacing="2" Class="align-end">
+                <MudItem xs="12" md="3">
+                    <IngredientPicker Value="row.Ingredient" ValueChanged="@(i => OnIngredientChanged(row, i))" Ingredients="_ingredients" />
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudSelect T="Ingredient" @bind-SelectedValues="row.Alternatives" MultiSelection="true" Label="Or" Placeholder="No substitutes"
+                               ToStringFunc="@(i => i?.Name ?? "")" Clearable="true">
+                        @foreach (var ingredient in _ingredients.Where(i => i != row.Ingredient))
+                        {
+                            <MudSelectItem T="Ingredient" Value="ingredient">@ingredient.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="5" md="2">
+                    <MudNumericField T="decimal" @bind-Value="row.Quantity" Label="Quantity" Min="0" Step="0.25m" />
+                </MudItem>
+                <MudItem xs="7" md="2">
+                    <EnumSelect TEnum="Unit" @bind-Value="row.Unit" Label="Unit" />
+                </MudItem>
+                <MudItem xs="10" md="2">
+                    <MudTextField @bind-Value="row.Note" Label="Note" Placeholder="e.g. diced" />
+                </MudItem>
+                <MudItem xs="2" md="1">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => _rows.Remove(row))" aria-label="Remove ingredient" />
+                </MudItem>
+            </MudGrid>
+        }
+    </MudPaper>
+
+    <MudPaper Class="pa-4">
+        <MudText Typo="Typo.h6" Class="mb-2">Instructions</MudText>
+        <MudTextField @bind-Value="_instructions" Lines="10" Sizing="InputSizing.Auto" Variant="Variant.Outlined" Placeholder="One step per line" />
+    </MudPaper>
+</MudForm>
+
+@code {
+    private sealed class Row
+    {
+        public Ingredient? Ingredient { get; set; }
+        public decimal Quantity { get; set; } = 1;
+        public Unit Unit { get; set; }
+        public string? Note { get; set; }
+        public IReadOnlyCollection<Ingredient> Alternatives { get; set; } = [];
+    }
+
+    private MudForm _form = null!;
+    private List<Ingredient> _ingredients = [];
+    private readonly List<Row> _rows = [];
+    private bool _notFound;
+
+    private string _name = "";
+    private string? _description;
+    private int _servings = 4;
+    private int? _prepMinutes;
+    private int? _cookMinutes;
+    private string? _instructions;
+    private string? _sourceUrl;
+
+    [Parameter] public int? Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _ingredients = await db.Ingredients.AsNoTracking().OrderBy(i => i.Name).ToListAsync();
+
+        if (Id is null)
+        {
+            return;
+        }
+
+        var recipe = await db.Recipes.AsNoTracking()
+            .Include(r => r.Ingredients).ThenInclude(ri => ri.Alternatives)
+            .FirstOrDefaultAsync(r => r.Id == Id);
+        if (recipe is null)
+        {
+            _notFound = true;
+            return;
+        }
+
+        _name = recipe.Name;
+        _description = recipe.Description;
+        _servings = recipe.Servings;
+        _prepMinutes = recipe.PrepMinutes;
+        _cookMinutes = recipe.CookMinutes;
+        _instructions = recipe.Instructions;
+        _sourceUrl = recipe.SourceUrl;
+        _rows.AddRange(recipe.Ingredients.OrderBy(ri => ri.Id).Select(ri => new Row
+        {
+            Ingredient = _ingredients.First(i => i.Id == ri.IngredientId),
+            Quantity = ri.Quantity,
+            Unit = ri.Unit,
+            Note = ri.Note,
+            Alternatives = _ingredients.Where(i => ri.Alternatives.Any(a => a.IngredientId == i.Id)).ToList()
+        }));
+    }
+
+    private static void OnIngredientChanged(Row row, Ingredient? ingredient)
+    {
+        row.Ingredient = ingredient;
+        if (ingredient is not null)
+        {
+            row.Unit = ingredient.DefaultUnit;
+        }
+    }
+
+    private async Task CreateIngredientAsync()
+    {
+        var dialog = await DialogService.ShowAsync<IngredientDialog>("Add ingredient");
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: Ingredient ingredient })
+        {
+            _ingredients.Add(ingredient);
+            _rows.Add(new Row { Ingredient = ingredient, Unit = ingredient.DefaultUnit });
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid)
+        {
+            Snackbar.Add("Fix the highlighted fields before saving.", Severity.Warning);
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        Recipe recipe;
+        if (Id is null)
+        {
+            recipe = new Recipe();
+            db.Recipes.Add(recipe);
+        }
+        else
+        {
+            recipe = await db.Recipes.Include(r => r.Ingredients).ThenInclude(ri => ri.Alternatives).SingleAsync(r => r.Id == Id);
+            recipe.Ingredients.Clear();
+        }
+
+        recipe.Name = _name.Trim();
+        recipe.Description = _description;
+        recipe.Servings = _servings;
+        recipe.PrepMinutes = _prepMinutes;
+        recipe.CookMinutes = _cookMinutes;
+        recipe.Instructions = _instructions;
+        recipe.SourceUrl = _sourceUrl;
+        recipe.Ingredients.AddRange(_rows.Select(row => new RecipeIngredient
+        {
+            IngredientId = row.Ingredient!.Id,
+            Quantity = row.Quantity,
+            Unit = row.Unit,
+            Note = row.Note,
+            Alternatives = row.Alternatives
+                .Where(a => a.Id != row.Ingredient!.Id)
+                .Select(a => new RecipeIngredientAlternative { IngredientId = a.Id })
+                .ToList()
+        }));
+
+        await db.SaveChangesAsync();
+        Snackbar.Add("Recipe saved.", Severity.Success);
+        Navigation.NavigateTo("recipes");
+    }
+}

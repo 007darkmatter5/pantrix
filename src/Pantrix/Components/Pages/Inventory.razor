@@ -1,0 +1,92 @@
+@page "/inventory"
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+@inject IDialogService DialogService
+
+<PageTitle>Inventory</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Inventory</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="@(() => EditAsync(null))">Add item</MudButton>
+</MudStack>
+
+<MudTable Items="_items" Filter="Matches" Hover="true" Dense="true">
+    <ToolBarContent>
+        <MudTextField @bind-Value="_search" Placeholder="Search" Adornment="Adornment.Start" Immediate="true"
+                      AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true" />
+        <MudSelect T="StorageLocation?" @bind-Value="_location" Placeholder="All locations" Clearable="true" Class="ml-4" Style="max-width: 220px">
+            @foreach (var location in Enum.GetValues<StorageLocation>())
+            {
+                <MudSelectItem T="StorageLocation?" Value="location">@location.Humanize()</MudSelectItem>
+            }
+        </MudSelect>
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh><MudTableSortLabel SortBy="new Func<InventoryItem, object>(i => i.Ingredient.Name)" InitialDirection="SortDirection.Ascending">Item</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel SortBy="new Func<InventoryItem, object>(i => i.Location.ToString())">Location</MudTableSortLabel></MudTh>
+        <MudTh>Quantity</MudTh>
+        <MudTh><MudTableSortLabel SortBy="new Func<InventoryItem, object>(i => i.ExpiresOn ?? DateOnly.MaxValue)">Expires</MudTableSortLabel></MudTh>
+        <MudTh></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.Ingredient.Name</MudTd>
+        <MudTd>@context.Location.Humanize()</MudTd>
+        <MudTd>@Units.Format(context.Quantity, context.Unit)</MudTd>
+        <MudTd>
+            @if (context.ExpiresOn is { } expires)
+            {
+                <MudChip T="string" Size="Size.Small" Color="ExpiryColor(expires)">@expires.ToString("MMM d, yyyy")</MudChip>
+            }
+        </MudTd>
+        <MudTd Style="text-align: right">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditAsync(context))" aria-label="Edit" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" aria-label="Delete" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>Nothing in inventory.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private List<InventoryItem> _items = [];
+    private string _search = "";
+    private StorageLocation? _location;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _items = await db.InventoryItems.AsNoTracking().Include(i => i.Ingredient).OrderBy(i => i.Ingredient.Name).ToListAsync();
+    }
+
+    private bool Matches(InventoryItem item) =>
+        (_location is null || item.Location == _location)
+        && (string.IsNullOrWhiteSpace(_search) || item.Ingredient.Name.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    private static Color ExpiryColor(DateOnly expires)
+    {
+        var daysLeft = expires.DayNumber - DateOnly.FromDateTime(DateTime.Today).DayNumber;
+        return daysLeft < 0 ? Color.Error : daysLeft <= 3 ? Color.Warning : Color.Default;
+    }
+
+    private async Task EditAsync(InventoryItem? item)
+    {
+        var parameters = new DialogParameters<InventoryItemDialog> { { d => d.Item, item } };
+        var dialog = await DialogService.ShowAsync<InventoryItemDialog>(item is null ? "Add item" : "Edit item", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task DeleteAsync(InventoryItem item)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        await db.InventoryItems.Where(i => i.Id == item.Id).ExecuteDeleteAsync();
+        await LoadAsync();
+    }
+}

@@ -1,0 +1,179 @@
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+@inject AddressLookupService AddressLookup
+@inject IDialogService DialogService
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="_name" Label="Store" Placeholder="e.g. Sam's Club" Required="true" RequiredError="Store name is required" AutoFocus="true" />
+            <MudTextField @bind-Value="_location" Label="Location" Placeholder="e.g. neighborhood or store number" Class="mt-3"
+                          HelperText="A short label to tell locations apart. Aisles are remembered separately for each one." />
+            <MudTextField @bind-Value="_streetAddress" Label="Street address" Immediate="true" Class="mt-3"
+                          Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search" AdornmentAriaLabel="Look up address"
+                          OnAdornmentClick="LookUpAddressAsync" OnKeyDown="OnAddressKeyDown"
+                          HelperText="Type an address, or the store's name and city, then press Enter to look it up in OpenStreetMap." />
+            @if (_lookingUp)
+            {
+                <MudProgressLinear Indeterminate="true" Class="mt-1" />
+            }
+            else if (_suggestions is { Count: 0 })
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">No matches found. You can still type the address in by hand.</MudText>
+            }
+            else if (_suggestions is not null)
+            {
+                <MudList T="AddressSuggestion" Dense="true">
+                    @foreach (var suggestion in _suggestions)
+                    {
+                        <MudListItem T="AddressSuggestion" Icon="@Icons.Material.Filled.Place" OnClick="@(() => UseAddress(suggestion))">@suggestion.Label</MudListItem>
+                    }
+                </MudList>
+            }
+            <MudGrid Spacing="4" Class="mt-0">
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_city" Label="City" />
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudTextField @bind-Value="_state" Label="State" />
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudTextField @bind-Value="_postalCode" Label="ZIP" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private MudForm _form = null!;
+    private string _name = "";
+    private string? _location;
+    private string? _streetAddress;
+    private bool _lookingUp;
+
+    // Null until a lookup has run; empty when it found nothing.
+    private IReadOnlyList<AddressSuggestion>? _suggestions;
+
+    // The lookup result the address fields came from. It identifies the place only while the street is left as it was.
+    private AddressSuggestion? _place;
+    private string? _city;
+    private string? _state;
+    private string? _postalCode;
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    /// <summary>The store to edit, or null to create a new one.</summary>
+    [Parameter] public Store? Store { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (Store is not null)
+        {
+            _name = Store.Name;
+            _location = Store.Location;
+            _streetAddress = Store.StreetAddress;
+            _city = Store.City;
+            _state = Store.State;
+            _postalCode = Store.PostalCode;
+            if (Store.OsmPlaceId is not null && Store.StreetAddress is not null)
+            {
+                _place = new AddressSuggestion(null, Store.StreetAddress, null, null, null, Store.OsmPlaceId, Store.Latitude, Store.Longitude);
+            }
+        }
+    }
+
+    private async Task OnAddressKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await LookUpAddressAsync();
+        }
+    }
+
+    private async Task LookUpAddressAsync()
+    {
+        // With nothing typed in the address box, search for the store itself.
+        var query = string.IsNullOrWhiteSpace(_streetAddress) ? $"{_name} {_city} {_state}".Trim() : _streetAddress.Trim();
+        if (query.Length < 4 || _lookingUp)
+        {
+            return;
+        }
+
+        _lookingUp = true;
+        StateHasChanged();
+        try
+        {
+            _suggestions = await AddressLookup.SearchAsync(query);
+        }
+        finally
+        {
+            _lookingUp = false;
+        }
+    }
+
+    private void UseAddress(AddressSuggestion address)
+    {
+        _suggestions = null;
+        _place = address;
+        _streetAddress = address.Street;
+        _city = address.City;
+        _state = address.State;
+        _postalCode = address.PostalCode;
+        if (string.IsNullOrWhiteSpace(_name) && !string.IsNullOrWhiteSpace(address.Name))
+        {
+            _name = address.Name;
+        }
+    }
+
+    private static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+
+    private async Task SaveAsync()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid)
+        {
+            return;
+        }
+
+        var street = Clean(_streetAddress);
+        var place = _place?.Street == street ? _place : null;
+        var saved = new Store
+        {
+            Id = Store?.Id ?? 0,
+            Name = _name.Trim(),
+            Location = Clean(_location),
+            StreetAddress = street,
+            City = Clean(_city),
+            State = Clean(_state),
+            PostalCode = Clean(_postalCode),
+            OsmPlaceId = place?.PlaceId,
+            Latitude = place?.Latitude,
+            Longitude = place?.Longitude
+        };
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        // A warning rather than a block: two real stores can share an address, e.g. a pharmacy inside a supermarket.
+        var duplicate = StoreDuplicateFinder.Find(saved, await db.Stores.AsNoTracking().ToListAsync());
+        if (duplicate is not null)
+        {
+            var saveAnyway = await DialogService.ShowMessageBoxAsync(
+                "Possible duplicate",
+                $"This looks like \"{duplicate.DisplayName}\" ({duplicate.FormattedAddress}), which you already have. " +
+                "Aisles are remembered per store, so a second copy would start with none.",
+                yesText: "Save anyway", cancelText: "Go back");
+            if (saveAnyway != true)
+            {
+                return;
+            }
+        }
+
+        db.Update(saved);
+        await db.SaveChangesAsync();
+        MudDialog.Close(DialogResult.Ok(saved));
+    }
+}

@@ -1,0 +1,98 @@
+@page "/ingredients"
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Ingredients</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Ingredients</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="@(() => EditAsync(null))">Add ingredient</MudButton>
+</MudStack>
+
+<MudTable Items="_ingredients" Filter="Matches" Hover="true" Dense="true">
+    <ToolBarContent>
+        <MudTextField @bind-Value="_search" Placeholder="Search" Adornment="Adornment.Start" Immediate="true"
+                      AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true" />
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh><MudTableSortLabel SortBy="new Func<Ingredient, object>(i => i.Name)" InitialDirection="SortDirection.Ascending">Name</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel SortBy="new Func<Ingredient, object>(i => i.Category.ToString())">Category</MudTableSortLabel></MudTh>
+        <MudTh>Default unit</MudTh>
+        <MudTh>Keep at least</MudTh>
+        <MudTh></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>
+            @context.Name
+            @if (context.ProductName is not null)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="display: block">@context.ProductName</MudText>
+            }
+        </MudTd>
+        <MudTd>@context.Category.Humanize()</MudTd>
+        <MudTd>@context.DefaultUnit.Humanize()</MudTd>
+        <MudTd>@(context.MinimumQuantity is { } minimum ? Units.Format(minimum, context.DefaultUnit) : "")</MudTd>
+        <MudTd Style="text-align: right">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditAsync(context))" aria-label="Edit" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" aria-label="Delete" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No ingredients yet.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private List<Ingredient> _ingredients = [];
+    private string _search = "";
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _ingredients = await db.Ingredients.AsNoTracking().OrderBy(i => i.Name).ToListAsync();
+    }
+
+    private bool Matches(Ingredient ingredient) =>
+        string.IsNullOrWhiteSpace(_search)
+        || ingredient.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+        || (ingredient.ProductName?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)
+        || ingredient.Category.Humanize().Contains(_search, StringComparison.OrdinalIgnoreCase);
+
+    private async Task EditAsync(Ingredient? ingredient)
+    {
+        var parameters = new DialogParameters<IngredientDialog> { { d => d.Ingredient, ingredient } };
+        var dialog = await DialogService.ShowAsync<IngredientDialog>(ingredient is null ? "Add ingredient" : "Edit ingredient", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task DeleteAsync(Ingredient ingredient)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete ingredient", $"Delete \"{ingredient.Name}\"? It will also be removed from your inventory.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (await db.RecipeIngredients.AnyAsync(ri => ri.IngredientId == ingredient.Id))
+        {
+            Snackbar.Add($"\"{ingredient.Name}\" is used by a recipe and can't be deleted.", Severity.Warning);
+            return;
+        }
+
+        db.Remove(ingredient);
+        await db.SaveChangesAsync();
+        await LoadAsync();
+    }
+}

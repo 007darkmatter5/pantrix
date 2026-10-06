@@ -1,0 +1,157 @@
+@page "/stores"
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+@inject IDialogService DialogService
+@inject StoreAisleService StoreAisles
+
+<PageTitle>Stores</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Stores</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="@(() => EditAsync(null))">Add store</MudButton>
+</MudStack>
+
+<MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
+    Record which aisle each item is in, here, on the ingredient, or on a shopping list while you shop.
+    A shopping list with a store picked then sorts by aisle.
+</MudAlert>
+
+@if (_stores.Count == 0)
+{
+    <MudText>No stores yet.</MudText>
+}
+
+@foreach (var store in _stores)
+{
+    <MudPaper @key="store.Id" Class="pa-4 mb-3">
+        <MudStack Row="true" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.h6">@store.DisplayName</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">@store.Aisles.Count @(store.Aisles.Count == 1 ? "item" : "items") located</MudText>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditAsync(store))" aria-label="Edit" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(store))" aria-label="Delete" />
+        </MudStack>
+
+        @if (store.FormattedAddress.Length > 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">@store.FormattedAddress</MudText>
+        }
+
+        <MudGrid Spacing="2" Class="align-end mt-1">
+            <MudItem xs="12" sm="6">
+                <IngredientPicker Value="NewAisleFor(store).Ingredient" ValueChanged="@(i => NewAisleFor(store).Ingredient = i)"
+                                  Ingredients="_ingredients" Label="Add an item sold here" />
+            </MudItem>
+            <MudItem xs="7" sm="3">
+                <MudTextField @bind-Value="NewAisleFor(store).Aisle" Label="Aisle" Immediate="true" />
+            </MudItem>
+            <MudItem xs="5" sm="3">
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => AddAisleAsync(store))"
+                           Disabled="@(NewAisleFor(store).Ingredient is null || string.IsNullOrWhiteSpace(NewAisleFor(store).Aisle))">Add</MudButton>
+            </MudItem>
+        </MudGrid>
+
+        @if (store.Aisles.Count > 0)
+        {
+            <MudTable Items="@store.Aisles.OrderBy(a => AisleOrder.Key(a.Aisle)).ThenBy(a => a.Ingredient.Name)" Dense="true" Elevation="0" Class="mt-2">
+                <HeaderContent>
+                    <MudTh>Aisle</MudTh>
+                    <MudTh>Item</MudTh>
+                    <MudTh>Last confirmed</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.Aisle</MudTd>
+                    <MudTd>
+                        @context.Ingredient.Name
+                        @if (StoreAisleService.IsWebLink(context.ProductUrl))
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" Href="@context.ProductUrl" Target="_blank"
+                                           aria-label="Open product page" />
+                        }
+                    </MudTd>
+                    <MudTd>@(context.Aisle.Length > 0 ? context.LastConfirmed.ToString("MMM d, yyyy") : "")</MudTd>
+                    <MudTd Style="text-align: right">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => ForgetAisleAsync(context))" aria-label="Forget this aisle" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+}
+
+@code {
+    private sealed class NewAisle
+    {
+        public Ingredient? Ingredient { get; set; }
+        public string? Aisle { get; set; }
+    }
+
+    private List<Store> _stores = [];
+    private List<Ingredient> _ingredients = [];
+
+    // What is being typed into each store's "add an item" row, by store id.
+    private readonly Dictionary<int, NewAisle> _newAisles = [];
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private NewAisle NewAisleFor(Store store) =>
+        _newAisles.TryGetValue(store.Id, out var entry) ? entry : _newAisles[store.Id] = new NewAisle();
+
+    private async Task AddAisleAsync(Store store)
+    {
+        var entry = NewAisleFor(store);
+        if (entry.Ingredient is null)
+        {
+            return;
+        }
+
+        await StoreAisles.SetAsync(store.Id, entry.Ingredient.Id, entry.Aisle);
+        _newAisles.Remove(store.Id);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _ingredients = await db.Ingredients.AsNoTracking().OrderBy(i => i.Name).ToListAsync();
+        _stores = await db.Stores.AsNoTracking()
+            .Include(s => s.Aisles).ThenInclude(a => a.Ingredient)
+            .OrderBy(s => s.Name).ThenBy(s => s.Location)
+            .ToListAsync();
+    }
+
+    private async Task EditAsync(Store? store)
+    {
+        var parameters = new DialogParameters<StoreDialog> { { d => d.Store, store } };
+        var dialog = await DialogService.ShowAsync<StoreDialog>(store is null ? "Add store" : "Edit store", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task DeleteAsync(Store store)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete store", $"Delete \"{store.DisplayName}\" and the aisles recorded for it?",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        await db.Stores.Where(s => s.Id == store.Id).ExecuteDeleteAsync();
+        await LoadAsync();
+    }
+
+    private async Task ForgetAisleAsync(StoreAisle aisle)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        await db.StoreAisles.Where(a => a.Id == aisle.Id).ExecuteDeleteAsync();
+        await LoadAsync();
+    }
+}

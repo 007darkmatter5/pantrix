@@ -1,0 +1,74 @@
+@page "/shopping-lists"
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+@inject IDialogService DialogService
+@inject ShoppingListService ShoppingListService
+@inject NavigationManager Navigation
+
+<PageTitle>Shopping lists</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Shopping lists</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateAsync">New list</MudButton>
+</MudStack>
+
+<MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
+    Your newest list is kept up to date automatically: it holds whatever your upcoming planned meals need and anything
+    below its minimum, less what's in your inventory.
+</MudAlert>
+
+<MudTable Items="_lists" Hover="true" Dense="true">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Created</MudTh>
+        <MudTh>Progress</MudTh>
+        <MudTh></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd><MudLink Href="@($"shopping-lists/{context.Id}")">@context.Name</MudLink></MudTd>
+        <MudTd>@context.CreatedUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</MudTd>
+        <MudTd>@context.Items.Count(i => i.IsChecked) of @context.Items.Count</MudTd>
+        <MudTd Style="text-align: right">
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" aria-label="Delete" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No shopping lists yet.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private List<ShoppingList> _lists = [];
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await ShoppingListService.SyncAutomaticItemsAsync();
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _lists = await db.ShoppingLists.AsNoTracking().Include(l => l.Items).OrderByDescending(l => l.CreatedUtc).ToListAsync();
+    }
+
+    private async Task CreateAsync()
+    {
+        var list = new ShoppingList { Name = $"Shopping {DateTime.Today:MMM d}" };
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.ShoppingLists.Add(list);
+        await db.SaveChangesAsync();
+        Navigation.NavigateTo($"shopping-lists/{list.Id}");
+    }
+
+    private async Task DeleteAsync(ShoppingList list)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete shopping list", $"Delete \"{list.Name}\"?", yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        await db.ShoppingLists.Where(l => l.Id == list.Id).ExecuteDeleteAsync();
+        await LoadAsync();
+    }
+}

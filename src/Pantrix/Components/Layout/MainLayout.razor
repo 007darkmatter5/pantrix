@@ -1,0 +1,85 @@
+@inherits LayoutComponentBase
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<MudThemeProvider IsDarkMode="_darkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+@* Held back until the saved theme is known, so a dark-mode user doesn't see the light theme flash first. *@
+@if (_themeLoaded)
+{
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       OnClick="@(() => _drawerOpen = !_drawerOpen)" aria-label="Toggle navigation" />
+        <MudText Typo="Typo.h6" Class="ml-2">Pantrix</MudText>
+        <MudSpacer />
+        <MudIconButton Icon="@(_darkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       Color="Color.Inherit" OnClick="ToggleDarkModeAsync" aria-label="Toggle dark mode" />
+        <AuthorizeView>
+            <MudText Typo="Typo.body2" Class="mx-2">@context.User.Identity?.Name</MudText>
+            <MudTooltip Text="Sign out">
+                @* A full page load, because signing out is a web request and not a page of the interactive app. *@
+                <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" aria-label="Sign out"
+                               OnClick="@(() => Navigation.NavigateTo("account/logout", forceLoad: true))" />
+            </MudTooltip>
+        </AuthorizeView>
+    </MudAppBar>
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+        <NavMenu />
+    </MudDrawer>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+}
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    private const string DarkModeKey = "pantrix.darkMode";
+
+    private bool _drawerOpen = true;
+    private bool _darkMode;
+    private bool _themeLoaded;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            _darkMode = await JS.InvokeAsync<string?>("localStorage.getItem", DarkModeKey) == "true";
+        }
+        catch (JSException)
+        {
+            // Storage can be blocked (e.g. private browsing); the app still works with the default theme.
+        }
+
+        _themeLoaded = true;
+        StateHasChanged();
+    }
+
+    private async Task ToggleDarkModeAsync()
+    {
+        _darkMode = !_darkMode;
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", DarkModeKey, _darkMode ? "true" : "false");
+        }
+        catch (JSException)
+        {
+        }
+    }
+}

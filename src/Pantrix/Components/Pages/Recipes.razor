@@ -1,0 +1,86 @@
+@page "/recipes"
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+@inject IDialogService DialogService
+
+<PageTitle>Recipes</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Recipes</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="recipes/new">New recipe</MudButton>
+</MudStack>
+
+<MudTextField @bind-Value="_search" Placeholder="Search recipes" Adornment="Adornment.Start" Immediate="true"
+              AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true" Variant="Variant.Outlined" Class="mb-4" />
+
+@if (_recipes.Count == 0)
+{
+    <MudText>No recipes yet.</MudText>
+}
+
+<MudGrid>
+    @foreach (var recipe in Filtered)
+    {
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard>
+                <MudCardContent>
+                    <MudText Typo="Typo.h6">@recipe.Name</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@Summary(recipe)</MudText>
+                    @if (!string.IsNullOrWhiteSpace(recipe.Description))
+                    {
+                        <MudText Typo="Typo.body2" Class="mt-2">@recipe.Description</MudText>
+                    }
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Color="Color.Primary" Href="@($"recipes/{recipe.Id}")">Open</MudButton>
+                    <MudSpacer />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(recipe))" aria-label="Delete" />
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+    }
+</MudGrid>
+
+@code {
+    private List<Recipe> _recipes = [];
+    private string _search = "";
+
+    private IEnumerable<Recipe> Filtered => string.IsNullOrWhiteSpace(_search)
+        ? _recipes
+        : _recipes.Where(r => r.Name.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _recipes = await db.Recipes.AsNoTracking().Include(r => r.Ingredients).OrderBy(r => r.Name).ToListAsync();
+    }
+
+    private static string Summary(Recipe recipe)
+    {
+        var parts = new List<string> { $"Serves {recipe.Servings}", $"{recipe.Ingredients.Count} ingredients" };
+        var minutes = (recipe.PrepMinutes ?? 0) + (recipe.CookMinutes ?? 0);
+        if (minutes > 0)
+        {
+            parts.Add($"{minutes} min");
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    private async Task DeleteAsync(Recipe recipe)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete recipe", $"Delete \"{recipe.Name}\"? It will also be removed from any meal plans.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        await db.Recipes.Where(r => r.Id == recipe.Id).ExecuteDeleteAsync();
+        await LoadAsync();
+    }
+}

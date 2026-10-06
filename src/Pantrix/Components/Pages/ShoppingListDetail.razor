@@ -1,0 +1,288 @@
+@page "/shopping-lists/{Id:int}"
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+@inject ShoppingListService ShoppingListService
+@inject StoreAisleService StoreAisles
+
+<PageTitle>@(_list?.Name ?? "Shopping list")</PageTitle>
+
+@if (_notFound)
+{
+    <MudAlert Severity="Severity.Warning">That shopping list doesn't exist. <MudLink Href="shopping-lists">Back to shopping lists</MudLink></MudAlert>
+}
+else if (_list is not null)
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="shopping-lists" aria-label="Back to shopping lists" />
+        <MudText Typo="Typo.h4">@_list.Name</MudText>
+        <MudSpacer />
+        @if (_stores.Count == 0)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Store" Href="stores">Add a store to track aisles</MudButton>
+        }
+        else
+        {
+            <MudSelect T="int?" Value="_list.StoreId" ValueChanged="SetStoreAsync" Label="Shopping at" Placeholder="No store"
+                       Clearable="true" Dense="true" Style="max-width: 280px" RelativeWidth="DropdownWidth.Adaptive">
+                @foreach (var store in _stores)
+                {
+                    <MudSelectItem T="int?" Value="store.Id">@store.DisplayName</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        <MudText Color="Color.Secondary">@_list.Items.Count(i => i.IsChecked) of @_list.Items.Count</MudText>
+    </MudStack>
+
+    <MudPaper Class="pa-4 mb-4">
+        <MudGrid Spacing="2" Class="align-end">
+            <MudItem xs="12" md="5">
+                <MudAutocomplete T="string" Value="_newName" ValueChanged="OnNewNameChanged" Text="@_newName" TextChanged="OnNewNameChanged"
+                                 Label="Add an item" Placeholder="Pick an ingredient or type something new"
+                                 SearchFunc="SearchIngredientsAsync" CoerceValue="true" MaxItems="50" />
+            </MudItem>
+            <MudItem xs="4" md="2">
+                <MudNumericField T="decimal" @bind-Value="_newQuantity" Label="Quantity" Min="0" Step="0.5m" />
+            </MudItem>
+            <MudItem xs="5" md="3">
+                <EnumSelect TEnum="Unit" @bind-Value="_newUnit" Label="Unit" />
+            </MudItem>
+            <MudItem xs="3" md="2">
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="string.IsNullOrWhiteSpace(_newName)" OnClick="AddItemAsync">Add</MudButton>
+            </MudItem>
+            @if (IsCustomItem)
+            {
+                <MudItem xs="12" md="7">
+                    <MudCheckBox T="bool" @bind-Value="_saveAsIngredient" Color="Color.Primary" Dense="true">
+                        Save "@_newName.Trim()" as an ingredient so I can pick it next time
+                    </MudCheckBox>
+                </MudItem>
+                @if (_saveAsIngredient)
+                {
+                    <MudItem xs="12" md="3">
+                        <EnumSelect TEnum="IngredientCategory" @bind-Value="_newCategory" Label="Category" />
+                    </MudItem>
+                }
+            }
+        </MudGrid>
+    </MudPaper>
+
+    @if (_list.Items.Count == 0)
+    {
+        <MudText>This list is empty.</MudText>
+    }
+
+    @foreach (var section in Sections())
+    {
+        <MudPaper @key="section.Title" Class="pa-4 mb-3">
+            <MudText Typo="Typo.h6">@section.Title</MudText>
+            @foreach (var item in section.Items)
+            {
+                <MudStack @key="item.Id" Row="true" AlignItems="AlignItems.Center">
+                    <MudCheckBox T="bool" Value="item.IsChecked" ValueChanged="@(isChecked => SetCheckedAsync(item, isChecked))" Color="Color.Primary">
+                        <span style="@(item.IsChecked ? "text-decoration: line-through; opacity: 0.6" : null)">
+                            @item.Name <MudText Typo="Typo.body2" Color="Color.Secondary" Inline="true">@Units.Format(item.Quantity, item.Unit)</MudText>
+                            @if (ProductNameOf(item) is { } productName)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="display: block">@productName</MudText>
+                            }
+                        </span>
+                    </MudCheckBox>
+                    @if (item.IsAutomatic)
+                    {
+                        <MudTooltip Text="Kept up to date from your meal plans, minimums and inventory">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Auto</MudChip>
+                        </MudTooltip>
+                    }
+                    <MudSpacer />
+                    @if (_list.StoreId is not null && item.IngredientId is { } ingredientId && !item.IsChecked)
+                    {
+                        var atStore = _aisles.GetValueOrDefault(ingredientId);
+                        var aisle = AisleOf(item);
+                        @if (StoreAisleService.IsWebLink(atStore?.ProductUrl))
+                        {
+                            <MudTooltip Text="Open this product on the store's website">
+                                <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small" Href="@atStore!.ProductUrl" Target="_blank"
+                                               aria-label="Open product page" />
+                            </MudTooltip>
+                        }
+                        <MudTooltip Text="@(aisle is null ? "Where is this in the store?" : $"Last confirmed {atStore!.LastConfirmed:MMM d, yyyy}")">
+                            <MudTextField T="string" Value="@aisle" ValueChanged="@(text => SetAisleAsync(ingredientId, text))"
+                                          Placeholder="Aisle" Variant="Variant.Outlined" Margin="Margin.Dense" Style="width: 110px" />
+                        </MudTooltip>
+                    }
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => RemoveItemAsync(item))" aria-label="Remove item" />
+                </MudStack>
+            }
+        </MudPaper>
+    }
+}
+
+@code {
+    private ShoppingList? _list;
+    private bool _notFound;
+    private string _newName = "";
+    private decimal _newQuantity = 1;
+    private Unit _newUnit = Unit.Each;
+    private bool _saveAsIngredient;
+    private IngredientCategory _newCategory = IngredientCategory.Other;
+    private List<Ingredient> _ingredients = [];
+    private List<Store> _stores = [];
+
+    // Where each ingredient is in the list's store, by ingredient id. Empty when no store is picked.
+    private Dictionary<int, StoreAisle> _aisles = [];
+
+    [Parameter] public int Id { get; set; }
+
+    private Ingredient? MatchingIngredient =>
+        _ingredients.FirstOrDefault(i => i.Name.Equals(_newName.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private bool IsCustomItem => !string.IsNullOrWhiteSpace(_newName) && MatchingIngredient is null;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await ShoppingListService.SyncAutomaticItemsAsync();
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _ingredients = await db.Ingredients.AsNoTracking().OrderBy(i => i.Name).ToListAsync();
+        _list = await db.ShoppingLists.AsNoTracking().Include(l => l.Items).FirstOrDefaultAsync(l => l.Id == Id);
+        _notFound = _list is null;
+        _stores = await db.Stores.AsNoTracking().OrderBy(s => s.Name).ThenBy(s => s.Location).ToListAsync();
+        _aisles = _list?.StoreId is { } storeId
+            ? await db.StoreAisles.AsNoTracking().Where(a => a.StoreId == storeId).ToDictionaryAsync(a => a.IngredientId)
+            : [];
+    }
+
+    // Items still to buy, followed by everything already checked off in one section at the bottom.
+    // With a store picked they are grouped by aisle in walking order; otherwise by category.
+    private IEnumerable<(string Title, IEnumerable<ShoppingListItem> Items)> Sections()
+    {
+        var toBuy = _list!.Items.Where(i => !i.IsChecked).ToList();
+        if (_list.StoreId is null)
+        {
+            foreach (var group in toBuy.GroupBy(i => i.Category).OrderBy(g => g.Key))
+            {
+                yield return (group.Key.Humanize(), group.OrderBy(i => i.Name));
+            }
+        }
+        else
+        {
+            var located = toBuy.ToLookup(i => AisleOf(i) is not null);
+            foreach (var group in located[true].GroupBy(i => AisleOrder.Key(AisleOf(i)!)).OrderBy(g => g.Key))
+            {
+                yield return (AisleOrder.Title(AisleOf(group.First())!), group.OrderBy(i => i.Name));
+            }
+
+            if (located[false].Any())
+            {
+                yield return ("No aisle yet", located[false].OrderBy(i => i.Name));
+            }
+        }
+
+        var checkedOff = _list.Items.Where(i => i.IsChecked).OrderBy(i => i.Name).ToList();
+        if (checkedOff.Count > 0)
+        {
+            yield return ("Checked off", checkedOff);
+        }
+    }
+
+    // Null when the store has no aisle for the item, including when only its product page is recorded.
+    private string? AisleOf(ShoppingListItem item) =>
+        item.IngredientId is { } id && _aisles.GetValueOrDefault(id)?.Aisle is { Length: > 0 } aisle ? aisle : null;
+
+    // The specific product to look for. Left out for either/or items, where it would only describe one of the choices.
+    private string? ProductNameOf(ShoppingListItem item) =>
+        _ingredients.FirstOrDefault(i => i.Id == item.IngredientId) is { } ingredient && ingredient.Name == item.Name
+            ? ingredient.ProductName
+            : null;
+
+    private async Task SetStoreAsync(int? storeId)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        await db.ShoppingLists.Where(l => l.Id == Id).ExecuteUpdateAsync(s => s.SetProperty(l => l.StoreId, storeId));
+        await LoadAsync();
+    }
+
+    private async Task SetAisleAsync(int ingredientId, string? text)
+    {
+        if (_list?.StoreId is not { } storeId)
+        {
+            return;
+        }
+
+        await StoreAisles.SetAsync(storeId, ingredientId, text);
+        await LoadAsync();
+    }
+
+    private Task<IEnumerable<string>> SearchIngredientsAsync(string? text, CancellationToken cancellationToken)
+    {
+        var matches = string.IsNullOrWhiteSpace(text)
+            ? _ingredients
+            : _ingredients.Where(i => i.Name.Contains(text, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(matches.Select(i => i.Name));
+    }
+
+    private void OnNewNameChanged(string? name)
+    {
+        if (name == _newName)
+        {
+            return;
+        }
+
+        _newName = name ?? "";
+        if (MatchingIngredient is { } ingredient)
+        {
+            _newUnit = ingredient.DefaultUnit;
+        }
+    }
+
+    private async Task AddItemAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var item = new ShoppingListItem { ShoppingListId = Id, Name = _newName.Trim(), Quantity = _newQuantity, Unit = _newUnit };
+        if (MatchingIngredient is { } existing)
+        {
+            item.IngredientId = existing.Id;
+            item.Name = existing.Name;
+            item.Category = existing.Category;
+        }
+        else if (_saveAsIngredient)
+        {
+            item.Ingredient = new Ingredient { Name = item.Name, Category = _newCategory, DefaultUnit = _newUnit };
+            item.Category = _newCategory;
+        }
+
+        db.ShoppingListItems.Add(item);
+        await db.SaveChangesAsync();
+
+        _newName = "";
+        _newQuantity = 1;
+        _newUnit = Unit.Each;
+        _saveAsIngredient = false;
+        _newCategory = IngredientCategory.Other;
+        await LoadAsync();
+    }
+
+    private async Task SetCheckedAsync(ShoppingListItem item, bool isChecked)
+    {
+        item.IsChecked = isChecked;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        await db.ShoppingListItems.Where(i => i.Id == item.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(i => i.IsChecked, isChecked));
+
+        // Finding the item where the list said it was confirms that aisle is still right.
+        if (isChecked && AisleOf(item) is not null && _aisles.TryGetValue(item.IngredientId!.Value, out var aisle))
+        {
+            aisle.LastConfirmed = DateOnly.FromDateTime(DateTime.Today);
+            await db.StoreAisles.Where(a => a.Id == aisle.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(a => a.LastConfirmed, aisle.LastConfirmed));
+        }
+    }
+
+    private async Task RemoveItemAsync(ShoppingListItem item)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        await db.ShoppingListItems.Where(i => i.Id == item.Id).ExecuteDeleteAsync();
+        await LoadAsync();
+    }
+}

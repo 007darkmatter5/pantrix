@@ -1,0 +1,161 @@
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+@inject ISnackbar Snackbar
+@inject StoreAisleService StoreAisles
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="_name" Label="Name" Required="true" RequiredError="Name is required" AutoFocus="true" />
+            <MudTextField @bind-Value="_productName" Label="What I usually buy" Class="mt-3"
+                          HelperText="The specific product, e.g. brand and variety. Shown on shopping lists next to the name." />
+            <EnumSelect TEnum="IngredientCategory" @bind-Value="_category" Label="Category" Class="mt-3" />
+            <EnumSelect TEnum="Unit" @bind-Value="_defaultUnit" Label="Default unit" Class="mt-3" />
+            <MudNumericField T="decimal?" @bind-Value="_minimumQuantity" Label="Keep at least" Min="0" Step="1" Clearable="true" Class="mt-3"
+                             HelperText="In the default unit. Shopping lists top this up when inventory falls below it. Leave blank for no minimum." />
+
+            @if (_stores.Count > 0)
+            {
+                <MudText Typo="Typo.subtitle2" Class="mt-4">Where to find it</MudText>
+                @foreach (var store in _stores.Where(s => _entries.ContainsKey(s.Id)))
+                {
+                    var entry = _entries[store.Id];
+                    <MudText @key="@($"name-{store.Id}")" Typo="Typo.body2" Class="mt-3">@store.DisplayName</MudText>
+                    <MudGrid @key="store.Id" Spacing="2" Class="align-end">
+                        <MudItem xs="3">
+                            <MudTextField @bind-Value="entry.Aisle" Label="Aisle" />
+                        </MudItem>
+                        <MudItem xs="8">
+                            <MudTextField @bind-Value="entry.ProductUrl" Label="Product page" Placeholder="https://…" Validation="_linkValidation" />
+                        </MudItem>
+                        <MudItem xs="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => _entries.Remove(store.Id))"
+                                           aria-label="@($"Remove {store.DisplayName}")" />
+                        </MudItem>
+                    </MudGrid>
+                }
+
+                <MudGrid Spacing="2" Class="align-end mt-1">
+                    <MudItem xs="10">
+                        <MudAutocomplete T="Store" @bind-Value="_newStore" Label="Add a store" SearchFunc="SearchStoresAsync"
+                                         ToStringFunc="@(s => s?.DisplayName ?? "")" ResetValueOnEmptyText="true" MaxItems="20" />
+                    </MudItem>
+                    <MudItem xs="2">
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" OnClick="AddPendingStore" aria-label="Add store"
+                                       Disabled="@(_newStore is null)" />
+                    </MudItem>
+                </MudGrid>
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private sealed class StoreEntry
+    {
+        public string? Aisle { get; set; }
+        public string? ProductUrl { get; set; }
+    }
+
+    private readonly Func<string?, string?> _linkValidation = url =>
+        string.IsNullOrWhiteSpace(url) || StoreAisleService.IsWebLink(url) ? null : "Enter a full web address starting with https://";
+
+    private MudForm _form = null!;
+    private string _name = "";
+    private string? _productName;
+    private IngredientCategory _category = IngredientCategory.Other;
+    private Unit _defaultUnit = Unit.Each;
+    private decimal? _minimumQuantity;
+    private List<Store> _stores = [];
+
+    // What is known about the ingredient at each store that carries it, by store id. Only these stores are
+    // listed, so the dialog stays short however many stores exist.
+    private readonly Dictionary<int, StoreEntry> _entries = [];
+    private HashSet<int> _savedStoreIds = [];
+    private Store? _newStore;
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    /// <summary>The ingredient to edit, or null to create a new one.</summary>
+    [Parameter] public Ingredient? Ingredient { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _stores = await db.Stores.AsNoTracking().OrderBy(s => s.Name).ThenBy(s => s.City).ThenBy(s => s.Location).ToListAsync();
+
+        if (Ingredient is not null)
+        {
+            _name = Ingredient.Name;
+            _productName = Ingredient.ProductName;
+            _category = Ingredient.Category;
+            _defaultUnit = Ingredient.DefaultUnit;
+            _minimumQuantity = Ingredient.MinimumQuantity;
+            foreach (var record in await db.StoreAisles.AsNoTracking().Where(a => a.IngredientId == Ingredient.Id).ToListAsync())
+            {
+                _entries[record.StoreId] = new StoreEntry { Aisle = record.Aisle, ProductUrl = record.ProductUrl };
+            }
+
+            _savedStoreIds = [.. _entries.Keys];
+        }
+    }
+
+    private Task<IEnumerable<Store>> SearchStoresAsync(string? text, CancellationToken cancellationToken)
+    {
+        var available = _stores.Where(s => !_entries.ContainsKey(s.Id));
+        return Task.FromResult(string.IsNullOrWhiteSpace(text)
+            ? available
+            : available.Where(s => s.DisplayName.Contains(text, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private void AddPendingStore()
+    {
+        if (_newStore is not null)
+        {
+            _entries.TryAdd(_newStore.Id, new StoreEntry());
+            _newStore = null;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid)
+        {
+            return;
+        }
+
+        var saved = new Ingredient
+        {
+            Id = Ingredient?.Id ?? 0,
+            Name = _name.Trim(),
+            ProductName = string.IsNullOrWhiteSpace(_productName) ? null : _productName.Trim(),
+            Category = _category,
+            DefaultUnit = _defaultUnit,
+            MinimumQuantity = _minimumQuantity > 0 ? _minimumQuantity : null
+        };
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (await db.Ingredients.AnyAsync(i => i.Name == saved.Name && i.Id != saved.Id))
+        {
+            Snackbar.Add($"An ingredient named \"{saved.Name}\" already exists.", Severity.Error);
+            return;
+        }
+
+        db.Update(saved);
+        await db.SaveChangesAsync();
+
+        // Stores removed from the list come through as blank, which forgets what was recorded for them.
+        foreach (var storeId in _savedStoreIds.Union(_entries.Keys))
+        {
+            var entry = _entries.GetValueOrDefault(storeId);
+            await StoreAisles.SetAsync(storeId, saved.Id, entry?.Aisle);
+            await StoreAisles.SetProductUrlAsync(storeId, saved.Id, entry?.ProductUrl);
+        }
+
+        MudDialog.Close(DialogResult.Ok(saved));
+    }
+}
