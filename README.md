@@ -10,7 +10,21 @@ A self-hosted kitchen planner: recipes, what's in the fridge and pantry, meal pl
 - **A live shopping list.** Always current: what upcoming meals need, plus anything below its minimum, less what's in inventory. Add your own items too.
 - **Stores and aisles.** Record which aisle each item is in at each store you use, and the list sorts into walking order for the store you're in. Each item can link to its page on the store's website.
 
-Pantrix is behind a username and password. The first time you open a fresh install, it asks you to create them.
+## Accounts and kitchens
+
+Pantrix is behind a username and password. The first time you open a fresh install it asks you to create an account,
+and that account is the admin.
+
+- **Each account has its own kitchen.** Recipes, ingredients, inventory, meal plans, shopping lists and stores all
+  belong to a kitchen, and nobody outside it can see them.
+- **Sharing a kitchen.** A kitchen's owner finds a join code on the Kitchen page. Anyone with an account who enters
+  it joins that kitchen and can see and change everything in it. They can go back to their own kitchen at any time,
+  and the owner can remove them or change the code.
+- **Sign-ups.** Anyone who can reach the sign-in page can create an account until the admin switches that off on the
+  Admin page. Do so once everyone has an account, especially if Pantrix is reachable from the internet. The admin can
+  see who has an account, but not into their kitchens.
+
+Upgrading from a version without kitchens keeps everything: the existing data becomes the first account's kitchen.
 
 ## Unraid
 

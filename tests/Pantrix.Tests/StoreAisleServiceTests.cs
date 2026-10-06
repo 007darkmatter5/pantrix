@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Pantrix.Data;
 using Pantrix.Services;
@@ -7,21 +6,16 @@ namespace Pantrix.Tests;
 
 public sealed class StoreAisleServiceTests : IDisposable
 {
-    // The in-memory database lives only as long as this connection stays open.
-    private readonly SqliteConnection _connection = new("Data Source=:memory:");
-    private readonly DbContextOptions<PantrixDbContext> _options;
+    private readonly TestDatabase _database = new();
     private readonly StoreAisleService _service;
     private readonly int _storeId;
     private readonly int _ingredientId;
 
     public StoreAisleServiceTests()
     {
-        _connection.Open();
-        _options = new DbContextOptionsBuilder<PantrixDbContext>().UseSqlite(_connection).Options;
-        _service = new StoreAisleService(new Factory(_options));
+        _service = new StoreAisleService(_database.InKitchen(1));
 
-        using var db = new PantrixDbContext(_options);
-        db.Database.Migrate();
+        using var db = _database.Open(1);
         var store = new Store { Name = "H-E-B" };
         var ingredient = new Ingredient { Name = "Breakfast Sausage" };
         db.AddRange(store, ingredient);
@@ -30,7 +24,7 @@ public sealed class StoreAisleServiceTests : IDisposable
         _ingredientId = ingredient.Id;
     }
 
-    public void Dispose() => _connection.Dispose();
+    public void Dispose() => _database.Dispose();
 
     [Fact]
     public async Task Aisle_and_product_page_are_kept_on_one_record()
@@ -92,12 +86,7 @@ public sealed class StoreAisleServiceTests : IDisposable
 
     private async Task<List<StoreAisle>> RecordsAsync()
     {
-        await using var db = new PantrixDbContext(_options);
+        await using var db = _database.Open(1);
         return await db.StoreAisles.AsNoTracking().ToListAsync();
-    }
-
-    private sealed class Factory(DbContextOptions<PantrixDbContext> options) : IDbContextFactory<PantrixDbContext>
-    {
-        public PantrixDbContext CreateDbContext() => new(options);
     }
 }

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +20,8 @@ public class AccountService(IDbContextFactory<PantrixDbContext> dbFactory, TimeP
     public const int MaxFailedSignIns = 5;
     public static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(5);
 
+    private const string RegistrationOpenKey = "RegistrationOpen";
+
     private readonly PasswordHasher<AppUser> _hasher = new();
 
     /// <summary>False on a fresh install, when the first visitor is asked to create the account.</summary>
@@ -28,7 +31,30 @@ public class AccountService(IDbContextFactory<PantrixDbContext> dbFactory, TimeP
         return await db.Users.AnyAsync();
     }
 
-    /// <summary>Creates a user, or returns a message saying why it couldn't.</summary>
+    /// <summary>
+    /// Whether someone can create an account for themselves. Open until an admin closes it, and always open
+    /// while there are no accounts, or a fresh install could never be set up.
+    /// </summary>
+    public async Task<bool> IsRegistrationOpenAsync()
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        return !await db.Users.AnyAsync() || (await db.AppSettings.FindAsync(RegistrationOpenKey))?.Value != "false";
+    }
+
+    public async Task SetRegistrationOpenAsync(bool open)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var setting = await db.AppSettings.FindAsync(RegistrationOpenKey)
+            ?? db.Add(new AppSetting { Key = RegistrationOpenKey }).Entity;
+        setting.Value = open ? "true" : "false";
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Creates an account with a kitchen of its own, or returns a message saying why it couldn't.
+    /// The first account on an install is the admin, and takes over the kitchen left by a version from before
+    /// accounts existed, if there is one.
+    /// </summary>
     public async Task<(AppUser? User, string? Error)> CreateAsync(string? userName, string? password)
     {
         userName = userName?.Trim() ?? "";
@@ -43,15 +69,33 @@ public class AccountService(IDbContextFactory<PantrixDbContext> dbFactory, TimeP
         }
 
         await using var db = await dbFactory.CreateDbContextAsync();
+        if (!await IsRegistrationOpenAsync())
+        {
+            return (null, "New accounts aren't being accepted.");
+        }
+
         if (await db.Users.AnyAsync(u => u.UserName == userName))
         {
             return (null, "That username is already taken.");
         }
 
-        var user = new AppUser { UserName = userName };
+        await using var transaction = await db.Database.BeginTransactionAsync();
+
+        var isFirst = !await db.Users.AnyAsync();
+        var kitchen = isFirst ? await db.Kitchens.FirstOrDefaultAsync(k => k.OwnerId == null) : null;
+        kitchen ??= db.Add(new Kitchen { JoinCode = NewJoinCode() }).Entity;
+        kitchen.Name = $"{userName}'s kitchen";
+
+        var user = new AppUser { UserName = userName, IsAdmin = isFirst, Kitchen = kitchen };
         user.PasswordHash = _hasher.HashPassword(user, password!);
         db.Users.Add(user);
+
+        // The account and its kitchen point at each other, so the kitchen's owner can only be set once the account has an id.
         await db.SaveChangesAsync();
+        kitchen.Owner = user;
+        await db.SaveChangesAsync();
+
+        await transaction.CommitAsync();
         return (user, null);
     }
 
@@ -99,6 +143,16 @@ public class AccountService(IDbContextFactory<PantrixDbContext> dbFactory, TimeP
         await db.SaveChangesAsync();
         return (SignInOutcome.Succeeded, user);
     }
+
+    /// <summary>Everyone with an account, for the admin's list.</summary>
+    public async Task<List<AppUser>> GetUsersAsync()
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        return await db.Users.AsNoTracking().Include(u => u.Kitchen).OrderBy(u => u.UserName).ToListAsync();
+    }
+
+    // Letters and digits that can't be mistaken for each other when read aloud or copied by hand.
+    public static string NewJoinCode() => RandomNumberGenerator.GetString("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 8);
 
     /// <summary>The identity stored in the sign-in cookie.</summary>
     public static ClaimsPrincipal ToPrincipal(AppUser user) => new(new ClaimsIdentity(

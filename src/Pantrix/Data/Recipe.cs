@@ -1,8 +1,9 @@
 namespace Pantrix.Data;
 
-public class Recipe
+public class Recipe : IKitchenOwned
 {
     public int Id { get; set; }
+    public int KitchenId { get; set; }
     public string Name { get; set; } = "";
     public string? Description { get; set; }
     public int Servings { get; set; } = 4;

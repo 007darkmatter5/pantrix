@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Pantrix.Data;
 using Pantrix.Services;
@@ -9,23 +8,17 @@ public sealed class ShoppingListServiceTests : IDisposable
 {
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.Today);
 
-    // The in-memory database lives only as long as this connection stays open.
-    private readonly SqliteConnection _connection = new("Data Source=:memory:");
-    private readonly TestDbContextFactory _factory;
+    private readonly TestDatabase _database = new();
+    private readonly IDbContextFactory<PantrixDbContext> _factory;
     private readonly ShoppingListService _service;
 
     public ShoppingListServiceTests()
     {
-        _connection.Open();
-        _factory = new TestDbContextFactory(
-            new DbContextOptionsBuilder<PantrixDbContext>().UseSqlite(_connection).Options);
+        _factory = _database.InKitchen(1);
         _service = new ShoppingListService(_factory);
-
-        using var db = _factory.CreateDbContext();
-        db.Database.Migrate();
     }
 
-    public void Dispose() => _connection.Dispose();
+    public void Dispose() => _database.Dispose();
 
     [Fact]
     public async Task Scales_recipes_by_servings_and_subtracts_inventory()
@@ -247,10 +240,5 @@ public sealed class ShoppingListServiceTests : IDisposable
                 .Select(i => $"{i.Name}: {Units.Format(i.Quantity, i.Unit)}{(i.IsAutomatic ? " (auto)" : "")}")
                 .ToList())
             .ToList();
-    }
-
-    private sealed class TestDbContextFactory(DbContextOptions<PantrixDbContext> options) : IDbContextFactory<PantrixDbContext>
-    {
-        public PantrixDbContext CreateDbContext() => new(options);
     }
 }

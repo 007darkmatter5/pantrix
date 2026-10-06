@@ -1,3 +1,4 @@
+@page "/account/register"
 @page "/account/setup"
 @layout AccountLayout
 @attribute [ExcludeFromInteractiveRouting]
@@ -5,17 +6,25 @@
 @inject AccountService Accounts
 @inject NavigationManager Navigation
 
-<PageTitle>Set up - Pantrix</PageTitle>
+<PageTitle>Create an account - Pantrix</PageTitle>
 
-<h1>Welcome to Pantrix</h1>
-<p>Create the username and password you'll sign in with.</p>
+@if (_firstAccount)
+{
+    <h1>Welcome to Pantrix</h1>
+    <p>Create the username and password you'll sign in with. As the first account, you'll be the admin.</p>
+}
+else
+{
+    <h1>Create an account</h1>
+    <p>You'll get a kitchen of your own. To share someone else's, ask them for their join code once you're in.</p>
+}
 
 @if (_error is not null)
 {
     <p class="error" role="alert">@_error</p>
 }
 
-<EditForm Model="Input" FormName="setup" OnSubmit="CreateAsync" method="post">
+<EditForm Model="Input" FormName="register" OnSubmit="CreateAsync" method="post">
     <label>
         Username
         <InputText @bind-Value="Input.UserName" autocomplete="username" autofocus />
@@ -31,8 +40,14 @@
     <button type="submit">Create account</button>
 </EditForm>
 
+@if (!_firstAccount)
+{
+    <p class="alternative">Already have an account? <a href="account/login">Sign in</a></p>
+}
+
 @code {
     private string? _error;
+    private bool _firstAccount;
 
     [CascadingParameter] private HttpContext HttpContext { get; set; } = null!;
     [SupplyParameterFromForm] private NewAccount Input { get; set; } = null!;
@@ -40,9 +55,10 @@
     protected override async Task OnInitializedAsync()
     {
         Input ??= new NewAccount();
+        _firstAccount = !await Accounts.AnyUsersAsync();
 
-        // Setup is only for a fresh install; afterwards this page must not let a stranger add an account.
-        if (await Accounts.AnyUsersAsync())
+        // Once an admin has closed sign-ups this page must not let a stranger add an account.
+        if (!await Accounts.IsRegistrationOpenAsync())
         {
             Navigation.NavigateTo("account/login");
         }
@@ -50,11 +66,6 @@
 
     private async Task CreateAsync()
     {
-        if (await Accounts.AnyUsersAsync())
-        {
-            return;
-        }
-
         if (Input.Password != Input.ConfirmPassword)
         {
             _error = "The two passwords don't match.";

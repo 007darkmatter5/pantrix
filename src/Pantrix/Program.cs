@@ -19,9 +19,15 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddDbContextFactory<PantrixDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Pantrix")));
+
+// Pages and services ask for the usual context factory and get one tied to the signed-in account's kitchen.
+builder.Services.AddScoped<CurrentUser>();
+builder.Services.AddScoped<IDbContextFactory<PantrixDbContext>, KitchenDbContextFactory>();
+
 builder.Services.AddScoped<ShoppingListService>();
 builder.Services.AddScoped<StoreAisleService>();
 builder.Services.AddScoped<AccountService>();
+builder.Services.AddScoped<KitchenService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHttpClient<AddressLookupService>(client =>
 {
@@ -56,7 +62,7 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
-using (var db = app.Services.GetRequiredService<IDbContextFactory<PantrixDbContext>>().CreateDbContext())
+using (var db = new PantrixDbContext(app.Services.GetRequiredService<DbContextOptions<PantrixDbContext>>()))
 {
     db.Database.Migrate();
 }

@@ -1,3 +1,5 @@
+@inject CurrentUser CurrentUser
+
 <MudNavMenu>
     <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
     <MudNavLink Href="recipes" Icon="@Icons.Material.Filled.MenuBook">Recipes</MudNavLink>
@@ -6,4 +8,22 @@
     <MudNavLink Href="meal-plans" Icon="@Icons.Material.Filled.CalendarMonth">Meal plans</MudNavLink>
     <MudNavLink Href="shopping-lists" Icon="@Icons.Material.Filled.ShoppingCart">Shopping lists</MudNavLink>
     <MudNavLink Href="stores" Icon="@Icons.Material.Filled.Store">Stores</MudNavLink>
+    <MudDivider Class="my-2" />
+    <MudNavLink Href="kitchen" Icon="@Icons.Material.Filled.Group">@(_kitchenName ?? "Kitchen")</MudNavLink>
+    @if (_isAdmin)
+    {
+        <MudNavLink Href="admin" Icon="@Icons.Material.Filled.AdminPanelSettings">Admin</MudNavLink>
+    }
 </MudNavMenu>
+
+@code {
+    private string? _kitchenName;
+    private bool _isAdmin;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await CurrentUser.GetAsync();
+        _kitchenName = user?.Kitchen.Name;
+        _isAdmin = user?.IsAdmin == true;
+    }
+}

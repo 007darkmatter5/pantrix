@@ -16,9 +16,10 @@ public enum IngredientCategory
     Other
 }
 
-public class Ingredient
+public class Ingredient : IKitchenOwned
 {
     public int Id { get; set; }
+    public int KitchenId { get; set; }
     public string Name { get; set; } = "";
 
     /// <summary>The specific product usually bought, e.g. a brand and variety, when <see cref="Name"/> is just what it's called at home.</summary>

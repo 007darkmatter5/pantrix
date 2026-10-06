@@ -1,0 +1,158 @@
+@page "/kitchen"
+@inject CurrentUser CurrentUser
+@inject KitchenService Kitchens
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Kitchen</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Kitchen</MudText>
+
+@if (_info is not null)
+{
+    <MudPaper Class="pa-4 mb-4">
+        @if (_info.IsOwner)
+        {
+            <MudGrid Spacing="2" Class="align-end">
+                <MudItem xs="9" sm="6">
+                    <MudTextField @bind-Value="_name" Label="Kitchen name" />
+                </MudItem>
+                <MudItem xs="3">
+                    <MudButton Color="Color.Primary" OnClick="RenameAsync" Disabled="@(_name == _info.Kitchen.Name)">Rename</MudButton>
+                </MudItem>
+            </MudGrid>
+        }
+        else
+        {
+            <MudText Typo="Typo.h6">@_info.Kitchen.Name</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                You're a guest here: you can see and change everything in this kitchen. Your own kitchen is kept as you left it.
+            </MudText>
+            <MudButton Class="mt-3" StartIcon="@Icons.Material.Filled.Home" OnClick="LeaveAsync">Go back to my own kitchen</MudButton>
+        }
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mb-4">
+        <MudText Typo="Typo.h6">People in this kitchen</MudText>
+        @foreach (var member in _info.Members)
+        {
+            <MudStack @key="member.Id" Row="true" AlignItems="AlignItems.Center" Class="mt-2">
+                <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" />
+                <MudText>@member.UserName</MudText>
+                @if (member.Id == _info.Kitchen.OwnerId)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Owner</MudChip>
+                }
+                <MudSpacer />
+                @if (_info.IsOwner && member.Id != _userId)
+                {
+                    <MudButton Size="Size.Small" OnClick="@(() => RemoveAsync(member))">Remove</MudButton>
+                }
+            </MudStack>
+        }
+    </MudPaper>
+
+    @if (_info.IsOwner)
+    {
+        <MudPaper Class="pa-4 mb-4">
+            <MudText Typo="Typo.h6">Share this kitchen</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                Give this code to someone with an account here. When they enter it on their Kitchen page they join yours, and can
+                see and change everything in it.
+            </MudText>
+            <MudStack Row="true" AlignItems="AlignItems.Center">
+                <MudText Typo="Typo.h5" Style="font-family: monospace; letter-spacing: 0.15em">@_info.Kitchen.JoinCode</MudText>
+                <MudButton OnClick="RegenerateCodeAsync">New code</MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+
+    <MudPaper Class="pa-4">
+        <MudText Typo="Typo.h6">Join another kitchen</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-1">
+            Enter the join code its owner gave you. You'll switch to that kitchen; you can come back to your own at any time.
+        </MudText>
+        <MudGrid Spacing="2" Class="align-end">
+            <MudItem xs="8" sm="4">
+                <MudTextField @bind-Value="_joinCode" Label="Join code" Immediate="true" />
+            </MudItem>
+            <MudItem xs="4">
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="JoinAsync" Disabled="@string.IsNullOrWhiteSpace(_joinCode)">Join</MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+}
+
+@code {
+    private int _userId;
+    private KitchenInfo? _info;
+    private string _name = "";
+    private string? _joinCode;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _userId = await CurrentUser.GetIdAsync() ?? 0;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _info = await Kitchens.GetAsync(_userId);
+        _name = _info?.Kitchen.Name ?? "";
+    }
+
+    private async Task RenameAsync() => await ShowResultAsync(await Kitchens.RenameAsync(_userId, _name));
+
+    private async Task RegenerateCodeAsync()
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "New join code", "The current code will stop working. People already in the kitchen stay in it.",
+            yesText: "Make a new code", cancelText: "Cancel");
+        if (confirmed == true)
+        {
+            await ShowResultAsync(await Kitchens.RegenerateJoinCodeAsync(_userId));
+        }
+    }
+
+    private async Task RemoveAsync(AppUser member)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Remove from kitchen", $"Remove {member.UserName}? They go back to their own kitchen and can rejoin with the join code unless you change it.",
+            yesText: "Remove", cancelText: "Cancel");
+        if (confirmed == true)
+        {
+            await ShowResultAsync(await Kitchens.RemoveMemberAsync(_userId, member.Id));
+        }
+    }
+
+    private async Task JoinAsync()
+    {
+        if (await Kitchens.JoinAsync(_userId, _joinCode) is { } error)
+        {
+            Snackbar.Add(error, Severity.Error);
+            return;
+        }
+
+        SwitchKitchen();
+    }
+
+    private async Task LeaveAsync()
+    {
+        await Kitchens.LeaveAsync(_userId);
+        SwitchKitchen();
+    }
+
+    // Every open page was showing the old kitchen's data, so start the app afresh rather than patch each one.
+    private void SwitchKitchen() => Navigation.NavigateTo("/", forceLoad: true);
+
+    private async Task ShowResultAsync(string? error)
+    {
+        if (error is not null)
+        {
+            Snackbar.Add(error, Severity.Error);
+        }
+
+        await LoadAsync();
+    }
+}

@@ -8,9 +8,10 @@ public enum MealType
     Snack
 }
 
-public class MealPlan
+public class MealPlan : IKitchenOwned
 {
     public int Id { get; set; }
+    public int KitchenId { get; set; }
     public string Name { get; set; } = "";
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }
@@ -24,6 +25,7 @@ public class MealPlanEntry
 {
     public int Id { get; set; }
     public int MealPlanId { get; set; }
+    public MealPlan MealPlan { get; set; } = null!;
     public DateOnly Date { get; set; }
     public MealType MealType { get; set; } = MealType.Dinner;
 

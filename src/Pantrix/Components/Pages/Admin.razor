@@ -1,0 +1,72 @@
+@page "/admin"
+@inject CurrentUser CurrentUser
+@inject AccountService Accounts
+
+<PageTitle>Admin</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Admin</MudText>
+
+@if (_loaded && !_isAdmin)
+{
+    <MudAlert Severity="Severity.Warning">Only the admin can see this page.</MudAlert>
+}
+else if (_loaded)
+{
+    <MudPaper Class="pa-4 mb-4">
+        <MudSwitch T="bool" Value="_registrationOpen" ValueChanged="SetRegistrationOpenAsync" Color="Color.Primary">
+            Let new people create an account
+        </MudSwitch>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            While this is on, anyone who can reach the sign-in page can sign up and gets a kitchen of their own.
+            Turn it off once everyone you want has an account, especially if Pantrix is reachable from the internet.
+        </MudText>
+    </MudPaper>
+
+    <MudTable Items="_users" Dense="true" Hover="true">
+        <HeaderContent>
+            <MudTh>Account</MudTh>
+            <MudTh>Working in</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                @context.UserName
+                @if (context.IsAdmin)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Admin</MudChip>
+                }
+            </MudTd>
+            <MudTd>@context.Kitchen.Name</MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private bool _loaded;
+    private bool _isAdmin;
+    private bool _registrationOpen;
+    private List<AppUser> _users = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isAdmin = (await CurrentUser.GetAsync())?.IsAdmin == true;
+        if (_isAdmin)
+        {
+            _registrationOpen = await Accounts.IsRegistrationOpenAsync();
+            _users = await Accounts.GetUsersAsync();
+        }
+
+        _loaded = true;
+    }
+
+    private async Task SetRegistrationOpenAsync(bool open)
+    {
+        // Checked again here: the page may have been open since before the account stopped being an admin.
+        if ((await CurrentUser.GetAsync())?.IsAdmin != true)
+        {
+            return;
+        }
+
+        await Accounts.SetRegistrationOpenAsync(open);
+        _registrationOpen = open;
+    }
+}

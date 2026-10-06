@@ -1,8 +1,9 @@
 namespace Pantrix.Data;
 
-public class Store
+public class Store : IKitchenOwned
 {
     public int Id { get; set; }
+    public int KitchenId { get; set; }
 
     /// <summary>The chain or shop name, e.g. "Sam's Club".</summary>
     public string Name { get; set; } = "";

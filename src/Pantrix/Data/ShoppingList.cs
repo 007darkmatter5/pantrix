@@ -1,8 +1,9 @@
 namespace Pantrix.Data;
 
-public class ShoppingList
+public class ShoppingList : IKitchenOwned
 {
     public int Id { get; set; }
+    public int KitchenId { get; set; }
     public string Name { get; set; } = "";
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
     public int? MealPlanId { get; set; }
@@ -18,6 +19,7 @@ public class ShoppingListItem
 {
     public int Id { get; set; }
     public int ShoppingListId { get; set; }
+    public ShoppingList ShoppingList { get; set; } = null!;
 
     // Null for items typed in by hand that don't correspond to a known ingredient.
     public int? IngredientId { get; set; }

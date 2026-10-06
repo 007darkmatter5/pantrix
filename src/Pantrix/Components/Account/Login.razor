@@ -27,8 +27,14 @@
     <button type="submit">Sign in</button>
 </EditForm>
 
+@if (_registrationOpen)
+{
+    <p class="alternative">New here? <a href="account/register">Create an account</a></p>
+}
+
 @code {
     private string? _error;
+    private bool _registrationOpen;
 
     [CascadingParameter] private HttpContext HttpContext { get; set; } = null!;
     [SupplyParameterFromForm] private Credentials Input { get; set; } = null!;
@@ -43,6 +49,8 @@
         {
             Navigation.NavigateTo("account/setup");
         }
+
+        _registrationOpen = await Accounts.IsRegistrationOpenAsync();
     }
 
     private async Task SignInAsync()
