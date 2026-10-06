@@ -22,20 +22,20 @@ else if (_loaded)
         </MudText>
     </MudPaper>
 
-    <MudTable Items="_users" Dense="true" Hover="true">
+    <MudTable Breakpoint="Breakpoint.None" Items="_users" Dense="true" Hover="true">
         <HeaderContent>
             <MudTh>Account</MudTh>
             <MudTh>Working in</MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd DataLabel="Account">
+            <MudTd>
                 @context.UserName
                 @if (context.IsAdmin)
                 {
                     <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Admin</MudChip>
                 }
             </MudTd>
-            <MudTd DataLabel="Working in">@context.Kitchen.Name</MudTd>
+            <MudTd>@context.Kitchen.Name</MudTd>
         </RowTemplate>
     </MudTable>
 }

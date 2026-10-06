@@ -11,7 +11,7 @@
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateAsync">New meal plan</MudButton>
 </MudStack>
 
-<MudTable Items="_plans" Hover="true" Dense="true">
+<MudTable Breakpoint="Breakpoint.None" Items="_plans" Hover="true" Dense="true">
     <HeaderContent>
         <MudTh>Name</MudTh>
         <MudTh>Dates</MudTh>
@@ -19,10 +19,10 @@
         <MudTh></MudTh>
     </HeaderContent>
     <RowTemplate>
-        <MudTd DataLabel="Name"><MudLink Href="@($"meal-plans/{context.Id}")">@context.Name</MudLink></MudTd>
-        <MudTd DataLabel="Dates">@context.StartDate.ToString("MMM d") – @context.EndDate.ToString("MMM d, yyyy")</MudTd>
-        <MudTd DataLabel="Meals">@context.Entries.Count</MudTd>
-        <MudTd Style="text-align: right">
+        <MudTd><MudLink Href="@($"meal-plans/{context.Id}")">@context.Name</MudLink></MudTd>
+        <MudTd>@context.StartDate.ToString("MMM d") – @context.EndDate.ToString("MMM d, yyyy")</MudTd>
+        <MudTd>@context.Entries.Count</MudTd>
+        <MudTd Style="text-align: right; white-space: nowrap">
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" aria-label="Delete" />
         </MudTd>
     </RowTemplate>

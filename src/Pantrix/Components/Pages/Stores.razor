@@ -54,16 +54,16 @@
 
         @if (store.Aisles.Count > 0)
         {
-            <MudTable Items="@store.Aisles.OrderBy(a => AisleOrder.Key(a.Aisle)).ThenBy(a => a.Ingredient.Name)" Dense="true" Elevation="0" Class="mt-2">
+            <MudTable Breakpoint="Breakpoint.None" Items="@store.Aisles.OrderBy(a => AisleOrder.Key(a.Aisle)).ThenBy(a => a.Ingredient.Name)" Dense="true" Elevation="0" Class="mt-2">
                 <HeaderContent>
                     <MudTh>Aisle</MudTh>
                     <MudTh>Item</MudTh>
-                    <MudTh>Last confirmed</MudTh>
+                    <MudTh Class="d-none d-sm-table-cell">Last confirmed</MudTh>
                     <MudTh></MudTh>
                 </HeaderContent>
                 <RowTemplate>
-                    <MudTd DataLabel="Aisle">@context.Aisle</MudTd>
-                    <MudTd DataLabel="Item">
+                    <MudTd>@context.Aisle</MudTd>
+                    <MudTd>
                         @context.Ingredient.Name
                         @if (StoreAisleService.IsWebLink(context.ProductUrl))
                         {
@@ -71,8 +71,8 @@
                                            aria-label="Open product page" />
                         }
                     </MudTd>
-                    <MudTd DataLabel="Last confirmed">@(context.Aisle.Length > 0 ? context.LastConfirmed.ToString("MMM d, yyyy") : "")</MudTd>
-                    <MudTd Style="text-align: right">
+                    <MudTd Class="d-none d-sm-table-cell">@(context.Aisle.Length > 0 ? context.LastConfirmed.ToString("MMM d, yyyy") : "")</MudTd>
+                    <MudTd Style="text-align: right; white-space: nowrap">
                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => ForgetAisleAsync(context))" aria-label="Forget this aisle" />
                     </MudTd>
                 </RowTemplate>

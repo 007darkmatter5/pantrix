@@ -12,7 +12,7 @@
                OnClick="@(() => EditAsync(null))">Add ingredient</MudButton>
 </MudStack>
 
-<MudTable Items="_ingredients" Filter="Matches" Hover="true" Dense="true">
+<MudTable Breakpoint="Breakpoint.None" Items="_ingredients" Filter="Matches" Hover="true" Dense="true">
     <ToolBarContent>
         <MudTextField @bind-Value="_search" Placeholder="Search" Adornment="Adornment.Start" Immediate="true"
                       AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true" />
@@ -20,25 +20,23 @@
     <HeaderContent>
         <MudTh><MudTableSortLabel SortBy="new Func<Ingredient, object>(i => i.Name)" InitialDirection="SortDirection.Ascending">Name</MudTableSortLabel></MudTh>
         <MudTh><MudTableSortLabel SortBy="new Func<Ingredient, object>(i => i.Category.ToString())">Category</MudTableSortLabel></MudTh>
-        <MudTh>Default unit</MudTh>
-        <MudTh>Keep at least</MudTh>
+        <MudTh Class="d-none d-sm-table-cell">Default unit</MudTh>
+        <MudTh><span class="d-none d-sm-inline">Keep at least</span><span class="d-sm-none">Min</span></MudTh>
         <MudTh></MudTh>
     </HeaderContent>
     <RowTemplate>
-        <MudTd DataLabel="Name">
-            @* One block, so that on a phone the name and product stack on the value side instead of sitting side by side. *@
-            <div>
-                @context.Name
-                @if (context.ProductName is not null)
-                {
-                    <MudText Typo="Typo.caption" Color="Color.Secondary" Style="display: block">@context.ProductName</MudText>
-                }
-            </div>
+        <MudTd>
+            @context.Name
+            @if (context.ProductName is not null)
+            {
+                @* Left off on phones, along with the default unit column, to keep the table narrow enough to read. *@
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-none d-sm-block">@context.ProductName</MudText>
+            }
         </MudTd>
-        <MudTd DataLabel="Category">@context.Category.Humanize()</MudTd>
-        <MudTd DataLabel="Default unit">@context.DefaultUnit.Humanize()</MudTd>
-        <MudTd DataLabel="Keep at least">@(context.MinimumQuantity is { } minimum ? Units.Format(minimum, context.DefaultUnit) : "")</MudTd>
-        <MudTd Style="text-align: right">
+        <MudTd>@context.Category.Humanize()</MudTd>
+        <MudTd Class="d-none d-sm-table-cell">@context.DefaultUnit.Humanize()</MudTd>
+        <MudTd>@(context.MinimumQuantity is { } minimum ? Units.Format(minimum, context.DefaultUnit) : "")</MudTd>
+        <MudTd Style="text-align: right; white-space: nowrap">
             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditAsync(context))" aria-label="Edit" />
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" aria-label="Delete" />
         </MudTd>

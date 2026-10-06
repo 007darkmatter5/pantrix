@@ -1,0 +1,18 @@
+/* Phones: tables stay tables, so give the columns the room that roomy desktop padding would otherwise take. */
+@media (max-width: 599.98px) {
+    .mud-table.mud-table-dense .mud-table-root .mud-table-row .mud-table-cell {
+        padding: 6px 6px;
+    }
+
+    .mud-table.mud-table-dense .mud-table-root .mud-table-row .mud-table-cell:first-child {
+        padding-left: 12px;
+    }
+
+    .mud-table.mud-table-dense .mud-table-root .mud-table-row .mud-table-cell:last-child {
+        padding-right: 8px;
+    }
+
+    .mud-table .mud-table-cell .mud-icon-button {
+        padding: 4px;
+    }
+}

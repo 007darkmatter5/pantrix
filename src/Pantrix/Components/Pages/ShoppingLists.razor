@@ -17,18 +17,18 @@
     below its minimum, less what's in your inventory.
 </MudAlert>
 
-<MudTable Items="_lists" Hover="true" Dense="true">
+<MudTable Breakpoint="Breakpoint.None" Items="_lists" Hover="true" Dense="true">
     <HeaderContent>
         <MudTh>Name</MudTh>
-        <MudTh>Created</MudTh>
+        <MudTh Class="d-none d-sm-table-cell">Created</MudTh>
         <MudTh>Progress</MudTh>
         <MudTh></MudTh>
     </HeaderContent>
     <RowTemplate>
-        <MudTd DataLabel="Name"><MudLink Href="@($"shopping-lists/{context.Id}")">@context.Name</MudLink></MudTd>
-        <MudTd DataLabel="Created">@context.CreatedUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</MudTd>
-        <MudTd DataLabel="Progress">@context.Items.Count(i => i.IsChecked) of @context.Items.Count</MudTd>
-        <MudTd Style="text-align: right">
+        <MudTd><MudLink Href="@($"shopping-lists/{context.Id}")">@context.Name</MudLink></MudTd>
+        <MudTd Class="d-none d-sm-table-cell">@context.CreatedUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</MudTd>
+        <MudTd>@context.Items.Count(i => i.IsChecked) of @context.Items.Count</MudTd>
+        <MudTd Style="text-align: right; white-space: nowrap">
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" aria-label="Delete" />
         </MudTd>
     </RowTemplate>

@@ -11,7 +11,7 @@
                OnClick="@(() => EditAsync(null))">Add item</MudButton>
 </MudStack>
 
-<MudTable Items="_items" Filter="Matches" Hover="true" Dense="true">
+<MudTable Breakpoint="Breakpoint.None" Items="_items" Filter="Matches" Hover="true" Dense="true">
     <ToolBarContent>
         <MudTextField @bind-Value="_search" Placeholder="Search" Adornment="Adornment.Start" Immediate="true"
                       AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true" />
@@ -24,22 +24,26 @@
     </ToolBarContent>
     <HeaderContent>
         <MudTh><MudTableSortLabel SortBy="new Func<InventoryItem, object>(i => i.Ingredient.Name)" InitialDirection="SortDirection.Ascending">Item</MudTableSortLabel></MudTh>
-        <MudTh><MudTableSortLabel SortBy="new Func<InventoryItem, object>(i => i.Location.ToString())">Location</MudTableSortLabel></MudTh>
-        <MudTh>Quantity</MudTh>
+        <MudTh Class="d-none d-sm-table-cell"><MudTableSortLabel SortBy="new Func<InventoryItem, object>(i => i.Location.ToString())">Location</MudTableSortLabel></MudTh>
+        <MudTh><span class="d-none d-sm-inline">Quantity</span><span class="d-sm-none">Qty</span></MudTh>
         <MudTh><MudTableSortLabel SortBy="new Func<InventoryItem, object>(i => i.ExpiresOn ?? DateOnly.MaxValue)">Expires</MudTableSortLabel></MudTh>
         <MudTh></MudTh>
     </HeaderContent>
     <RowTemplate>
-        <MudTd DataLabel="Item">@context.Ingredient.Name</MudTd>
-        <MudTd DataLabel="Location">@context.Location.Humanize()</MudTd>
-        <MudTd DataLabel="Quantity">@Units.Format(context.Quantity, context.Unit)</MudTd>
-        <MudTd DataLabel="Expires">
+        <MudTd>
+            @context.Ingredient.Name
+            @* On phones the Location column is dropped to fit, so the location rides along under the name. *@
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block d-sm-none">@context.Location.Humanize()</MudText>
+        </MudTd>
+        <MudTd Class="d-none d-sm-table-cell">@context.Location.Humanize()</MudTd>
+        <MudTd>@Units.Format(context.Quantity, context.Unit)</MudTd>
+        <MudTd>
             @if (context.ExpiresOn is { } expires)
             {
                 <MudChip T="string" Size="Size.Small" Color="ExpiryColor(expires)">@expires.ToString("MMM d, yyyy")</MudChip>
             }
         </MudTd>
-        <MudTd Style="text-align: right">
+        <MudTd Style="text-align: right; white-space: nowrap">
             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditAsync(context))" aria-label="Edit" />
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" aria-label="Delete" />
         </MudTd>
