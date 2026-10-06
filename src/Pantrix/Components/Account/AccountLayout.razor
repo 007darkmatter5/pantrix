@@ -7,6 +7,7 @@
     :root.dark { --bg: #1a1a27; --card: #32333d; --text: #ececec; --muted: #b0b0b8; --line: #5c5d6a; --primary: #8f84f0; --error: #ff8a80; }
     body { margin: 0; background: var(--bg); color: var(--text); font-family: Roboto, Helvetica, Arial, sans-serif; }
     .account { max-width: 380px; margin: 12vh auto 0; padding: 32px; background: var(--card); border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, .2); }
+    .account .logo { display: block; margin: 0 0 16px; }
     .account h1 { margin: 0 0 4px; font-size: 1.6rem; font-weight: 500; }
     .account p { margin: 0 0 20px; color: var(--muted); }
     .account label { display: block; margin-bottom: 16px; font-size: .85rem; color: var(--muted); }
@@ -25,5 +26,6 @@
 </script>
 
 <main class="account">
+    <img class="logo" src="@Assets["icon.svg"]" alt="" width="64" height="64" />
     @Body
 </main>

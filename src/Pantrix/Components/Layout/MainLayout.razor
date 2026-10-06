@@ -14,6 +14,7 @@
     <MudAppBar Elevation="1">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
                        OnClick="@(() => _drawerOpen = !_drawerOpen)" aria-label="Toggle navigation" />
+        <img src="@Assets["icon.svg"]" alt="" width="28" height="28" class="ml-2" />
         <MudText Typo="Typo.h6" Class="ml-2">Pantrix</MudText>
         <MudSpacer />
         <MudIconButton Icon="@(_darkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"

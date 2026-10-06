@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- One gradient in page coordinates, so the tick cut through the jar shows exactly the background behind it. -->
+    <linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="512">
+      <stop offset="0" stop-color="#6A4DF0"/>
+      <stop offset="0.55" stop-color="#3B7BD9"/>
+      <stop offset="1" stop-color="#17B890"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="lift" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#0B1E4A" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="116" fill="url(#shine)"/>
+
+  <g filter="url(#lift)" fill="#fff">
+    <!-- Lid -->
+    <rect x="142" y="82" width="228" height="58" rx="20"/>
+    <!-- Jar: a wide mouth and gently rounded shoulders, like a mason jar -->
+    <path d="M164 154 H348 V170 C348 190 392 198 392 238 V374 A56 56 0 0 1 336 430 H176 A56 56 0 0 1 120 374 V238 C120 198 164 190 164 170 Z"/>
+  </g>
+
+  <!-- The tick: what's in the pantry is accounted for, and the list is done. -->
+  <path d="M190 316 L238 364 L326 262" fill="none" stroke="url(#bg)" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
