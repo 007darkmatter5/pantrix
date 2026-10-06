@@ -6,7 +6,7 @@
 
 <PageTitle>Shopping lists</PageTitle>
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+<MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
     <MudText Typo="Typo.h4">Shopping lists</MudText>
     <MudSpacer />
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateAsync">New list</MudButton>
@@ -25,9 +25,9 @@
         <MudTh></MudTh>
     </HeaderContent>
     <RowTemplate>
-        <MudTd><MudLink Href="@($"shopping-lists/{context.Id}")">@context.Name</MudLink></MudTd>
-        <MudTd>@context.CreatedUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</MudTd>
-        <MudTd>@context.Items.Count(i => i.IsChecked) of @context.Items.Count</MudTd>
+        <MudTd DataLabel="Name"><MudLink Href="@($"shopping-lists/{context.Id}")">@context.Name</MudLink></MudTd>
+        <MudTd DataLabel="Created">@context.CreatedUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</MudTd>
+        <MudTd DataLabel="Progress">@context.Items.Count(i => i.IsChecked) of @context.Items.Count</MudTd>
         <MudTd Style="text-align: right">
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" aria-label="Delete" />
         </MudTd>

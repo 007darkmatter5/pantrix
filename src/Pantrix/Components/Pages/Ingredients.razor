@@ -5,7 +5,7 @@
 
 <PageTitle>Ingredients</PageTitle>
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+<MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
     <MudText Typo="Typo.h4">Ingredients</MudText>
     <MudSpacer />
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
@@ -25,16 +25,19 @@
         <MudTh></MudTh>
     </HeaderContent>
     <RowTemplate>
-        <MudTd>
-            @context.Name
-            @if (context.ProductName is not null)
-            {
-                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="display: block">@context.ProductName</MudText>
-            }
+        <MudTd DataLabel="Name">
+            @* One block, so that on a phone the name and product stack on the value side instead of sitting side by side. *@
+            <div>
+                @context.Name
+                @if (context.ProductName is not null)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Style="display: block">@context.ProductName</MudText>
+                }
+            </div>
         </MudTd>
-        <MudTd>@context.Category.Humanize()</MudTd>
-        <MudTd>@context.DefaultUnit.Humanize()</MudTd>
-        <MudTd>@(context.MinimumQuantity is { } minimum ? Units.Format(minimum, context.DefaultUnit) : "")</MudTd>
+        <MudTd DataLabel="Category">@context.Category.Humanize()</MudTd>
+        <MudTd DataLabel="Default unit">@context.DefaultUnit.Humanize()</MudTd>
+        <MudTd DataLabel="Keep at least">@(context.MinimumQuantity is { } minimum ? Units.Format(minimum, context.DefaultUnit) : "")</MudTd>
         <MudTd Style="text-align: right">
             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditAsync(context))" aria-label="Edit" />
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" aria-label="Delete" />

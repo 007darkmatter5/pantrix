@@ -28,14 +28,14 @@ else if (_loaded)
             <MudTh>Working in</MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd>
+            <MudTd DataLabel="Account">
                 @context.UserName
                 @if (context.IsAdmin)
                 {
                     <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Admin</MudChip>
                 }
             </MudTd>
-            <MudTd>@context.Kitchen.Name</MudTd>
+            <MudTd DataLabel="Working in">@context.Kitchen.Name</MudTd>
         </RowTemplate>
     </MudTable>
 }

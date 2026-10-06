@@ -13,7 +13,7 @@
     return;
 }
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+<MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
     <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="recipes" aria-label="Back to recipes" />
     <MudText Typo="Typo.h4">@(Id is null ? "New recipe" : "Edit recipe")</MudText>
     <MudSpacer />

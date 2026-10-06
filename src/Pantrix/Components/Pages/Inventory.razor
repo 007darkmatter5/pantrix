@@ -4,7 +4,7 @@
 
 <PageTitle>Inventory</PageTitle>
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+<MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
     <MudText Typo="Typo.h4">Inventory</MudText>
     <MudSpacer />
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
@@ -30,10 +30,10 @@
         <MudTh></MudTh>
     </HeaderContent>
     <RowTemplate>
-        <MudTd>@context.Ingredient.Name</MudTd>
-        <MudTd>@context.Location.Humanize()</MudTd>
-        <MudTd>@Units.Format(context.Quantity, context.Unit)</MudTd>
-        <MudTd>
+        <MudTd DataLabel="Item">@context.Ingredient.Name</MudTd>
+        <MudTd DataLabel="Location">@context.Location.Humanize()</MudTd>
+        <MudTd DataLabel="Quantity">@Units.Format(context.Quantity, context.Unit)</MudTd>
+        <MudTd DataLabel="Expires">
             @if (context.ExpiresOn is { } expires)
             {
                 <MudChip T="string" Size="Size.Small" Color="ExpiryColor(expires)">@expires.ToString("MMM d, yyyy")</MudChip>

@@ -5,7 +5,7 @@
 
 <PageTitle>Stores</PageTitle>
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+<MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
     <MudText Typo="Typo.h4">Stores</MudText>
     <MudSpacer />
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
@@ -62,8 +62,8 @@
                     <MudTh></MudTh>
                 </HeaderContent>
                 <RowTemplate>
-                    <MudTd>@context.Aisle</MudTd>
-                    <MudTd>
+                    <MudTd DataLabel="Aisle">@context.Aisle</MudTd>
+                    <MudTd DataLabel="Item">
                         @context.Ingredient.Name
                         @if (StoreAisleService.IsWebLink(context.ProductUrl))
                         {
@@ -71,7 +71,7 @@
                                            aria-label="Open product page" />
                         }
                     </MudTd>
-                    <MudTd>@(context.Aisle.Length > 0 ? context.LastConfirmed.ToString("MMM d, yyyy") : "")</MudTd>
+                    <MudTd DataLabel="Last confirmed">@(context.Aisle.Length > 0 ? context.LastConfirmed.ToString("MMM d, yyyy") : "")</MudTd>
                     <MudTd Style="text-align: right">
                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => ForgetAisleAsync(context))" aria-label="Forget this aisle" />
                     </MudTd>
