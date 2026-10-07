@@ -19,11 +19,38 @@ public class AisleOrderTests
     }
 
     [Theory]
+    [InlineData("8, A8", "8, A10")]
+    [InlineData("Meat Market on the Back Wall, A29", "Meat Market on the Back Wall, A30")]
+    [InlineData("Produce", "Produce, A7")]
+    public void Spots_in_the_same_area_belong_together(string one, string another)
+    {
+        Assert.Equal(AisleOrder.Key(one), AisleOrder.Key(another));
+    }
+
+    [Fact]
+    public void Within_an_area_spots_sort_by_their_number_not_as_text()
+    {
+        string[] aisles = ["8, A10", "8, B2", "8, A8", "8", "8, A9"];
+
+        Assert.Equal(["8", "8, A8", "8, A9", "8, A10", "8, B2"], aisles.OrderBy(AisleOrder.SpotKey));
+    }
+
+    [Theory]
     [InlineData("12", "Aisle 12")]
     [InlineData("12B", "Aisle 12B")]
+    [InlineData("8, A8", "Aisle 8")]
     [InlineData("Bakery", "Bakery")]
-    public void Numbered_aisles_are_titled_as_aisles(string aisle, string expected)
+    [InlineData("Meat Market on the Back Wall, A29", "Meat Market on the Back Wall")]
+    public void An_areas_heading_leaves_out_the_spot(string aisle, string expected)
     {
         Assert.Equal(expected, AisleOrder.Title(aisle));
+    }
+
+    [Theory]
+    [InlineData("8, A8", "Aisle 8, A8")]
+    [InlineData("Meat Market on the Back Wall, A29", "Meat Market on the Back Wall, A29")]
+    public void A_full_location_keeps_the_spot(string aisle, string expected)
+    {
+        Assert.Equal(expected, AisleOrder.Describe(aisle));
     }
 }

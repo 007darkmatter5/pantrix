@@ -28,9 +28,9 @@ public class StoreBrowserService(HttpClient http, IDbContextFactory<PantrixDbCon
     private static readonly TimeSpan ReadFor = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan PageTimeout = TimeSpan.FromSeconds(30);
 
-    // Runs in the store's page. Finds each piece of text like "Aisle 8, A8", takes the product card around it
-    // (the largest box that doesn't also include a neighbour's aisle), and reads the product's name and link
-    // from the card. Nothing here is specific to one store.
+    // Runs in the store's page. Finds each location line ("Aisle 8, A8", "In Meat Market on the Back Wall, A29"),
+    // takes the product card around it (the largest box that doesn't also include a neighbour's location), and
+    // reads the product's name and link from the card. Nothing here is specific to one store.
     private const string ReadAislesScript = """
         (() => {
           const body = document.body ? document.body.innerText : '';
@@ -39,19 +39,29 @@ public class StoreBrowserService(HttpClient http, IDbContextFactory<PantrixDbCon
           const overlayChallenge = /press\s*(&|and)\s*hold|confirm you('|’)?re (a )?human|verify you are (a )?human|not a (ro)?bot\b/i.test(body);
           if (emptyChallenge || overlayChallenge) return JSON.stringify({ blocked: true, matches: [] });
 
-          const aisleText = /\bAisle\s+[A-Za-z0-9][^\n]{0,30}/i;
-          const mentions = el => ((el.innerText || '').match(/\bAisle\s+[A-Za-z0-9]/gi) || []).length;
-          const leaves = [...document.querySelectorAll('body *')]
-            .filter(el => el.children.length === 0 && aisleText.test(el.textContent || ''));
+          // A location is a short line of its own: "Aisle 8, A8", or a named area such as "In Meat Market on the Back
+          // Wall, A29". "In stock" and the like start the same way but aren't places.
+          const numbered = /^Aisle\s+[A-Za-z0-9].{0,40}$/i;
+          const named = /^In\s+(the\s+)?[A-Z][A-Za-z&'’\- ]{2,60}(,\s*[A-Za-z]{0,3}\d{1,4})?$/;
+          const notPlaces = /^In\s+(the\s+)?(stock|store|stores|cart|club|season|a |an |your |this |\d)/i;
+          const locationOf = el => {
+            const text = (el.textContent || '').trim();
+            if (text.length > 80) return null;
+            if (numbered.test(text)) return text.replace(/^Aisle\s+/i, '');
+            if (named.test(text) && !notPlaces.test(text)) return text.replace(/^In\s+(the\s+)?/, '');
+            return null;
+          };
+
+          const leaves = [...document.querySelectorAll('body *')].filter(el => el.children.length === 0 && locationOf(el) !== null);
+          const locationsIn = el => leaves.filter(leaf => el.contains(leaf)).length;
 
           const clean = text => (text || '').split('\n')[0].trim();
           const matches = [];
           const seen = new Set();
           for (const leaf of leaves) {
-            const aisle = (leaf.textContent.match(aisleText) || [''])[0].trim().replace(/^Aisle\s+/i, '');
-
+            // The product's card is the largest box around this location that doesn't also take in a neighbour's.
             let card = leaf;
-            while (card.parentElement && card.parentElement !== document.body && mentions(card.parentElement) === 1) card = card.parentElement;
+            while (card.parentElement && card.parentElement !== document.body && locationsIn(card.parentElement) === 1) card = card.parentElement;
 
             let name, url;
             if (leaves.length === 1) {
@@ -69,8 +79,8 @@ public class StoreBrowserService(HttpClient http, IDbContextFactory<PantrixDbCon
 
             if (!name || seen.has(url)) continue;
             seen.add(url);
-            matches.push({ name, aisle, url });
-            if (matches.length >= 30) break;
+            matches.push({ name, aisle: locationOf(leaf), url });
+            if (matches.length >= 40) break;
           }
 
           return JSON.stringify({ blocked: false, matches });

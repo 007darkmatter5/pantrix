@@ -169,7 +169,7 @@ else if (_list is not null)
             var located = toBuy.ToLookup(i => AisleOf(i) is not null);
             foreach (var group in located[true].GroupBy(i => AisleOrder.Key(AisleOf(i)!)).OrderBy(g => g.Key))
             {
-                yield return (AisleOrder.Title(AisleOf(group.First())!), group.OrderBy(i => i.Name));
+                yield return (AisleOrder.Title(AisleOf(group.First())!), group.OrderBy(i => AisleOrder.SpotKey(AisleOf(i)!)).ThenBy(i => i.Name));
             }
 
             if (located[false].Any())

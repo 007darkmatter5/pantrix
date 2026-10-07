@@ -30,7 +30,7 @@
                 {
                     <MudListItem T="AisleMatch" OnClick="@(() => MudDialog.Close(DialogResult.Ok(match)))">
                         <MudStack Row="true" AlignItems="AlignItems.Center">
-                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">@AisleOrder.Title(match.Aisle)</MudChip>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">@AisleOrder.Describe(match.Aisle)</MudChip>
                             <MudText Typo="Typo.body2">@match.Name</MudText>
                         </MudStack>
                     </MudListItem>

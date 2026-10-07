@@ -138,7 +138,7 @@
 
         @if (store.Aisles.Count > 0)
         {
-            <MudTable Breakpoint="Breakpoint.None" Items="@store.Aisles.OrderBy(a => AisleOrder.Key(a.Aisle)).ThenBy(a => a.Ingredient.Name)" Dense="true" Elevation="0" Class="mt-2">
+            <MudTable Breakpoint="Breakpoint.None" Items="@store.Aisles.OrderBy(a => AisleOrder.Key(a.Aisle)).ThenBy(a => AisleOrder.SpotKey(a.Aisle)).ThenBy(a => a.Ingredient.Name)" Dense="true" Elevation="0" Class="mt-2">
                 <HeaderContent>
                     <MudTh>Aisle</MudTh>
                     <MudTh>Item</MudTh>

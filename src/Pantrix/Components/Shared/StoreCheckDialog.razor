@@ -23,7 +23,7 @@
         {
             <MudAlert Severity="Severity.Success" Dense="true" Class="mt-3">
                 Aisles found for @_result.Matches.Count products, for example
-                "@_result.Matches[0].Name" in @AisleOrder.Title(_result.Matches[0].Aisle). Browser lookup works for this store.
+                "@_result.Matches[0].Name" in @AisleOrder.Describe(_result.Matches[0].Aisle). Browser lookup works for this store.
             </MudAlert>
         }
         else if (_result is not null)
