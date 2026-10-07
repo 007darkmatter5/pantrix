@@ -1,0 +1,380 @@
+@page "/recipes/import"
+@inject IDbContextFactory<PantrixDbContext> DbFactory
+@inject RecipeImportService Importer
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Import a recipe</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="recipes" aria-label="Back to recipes" />
+    <MudText Typo="Typo.h4">Import a recipe</MudText>
+</MudStack>
+
+@if (_rows is null)
+{
+    <MudPaper Class="pa-4 mb-4">
+        <MudText Typo="Typo.h6">From a web page</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary mb-2">Paste the address of a recipe. Pantrix reads the recipe from the page; nothing is saved until you've checked it.</MudText>
+        <MudGrid Spacing="2" Class="align-end">
+            <MudItem xs="12" sm="9">
+                <MudTextField @bind-Value="_address" Label="Recipe web address" Placeholder="https://…" Immediate="true" OnKeyDown="OnAddressKeyDown" />
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="FetchAsync" Disabled="@(_fetching || string.IsNullOrWhiteSpace(_address))">Read recipe</MudButton>
+            </MudItem>
+        </MudGrid>
+        @if (_fetching)
+        {
+            <MudProgressLinear Indeterminate="true" Class="mt-2" />
+        }
+        else if (_fetchError is not null)
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">@_fetchError</MudAlert>
+        }
+    </MudPaper>
+
+    <MudPaper Class="pa-4">
+        <MudText Typo="Typo.h6">Or paste it</MudText>
+        <MudTextField @bind-Value="_pastedName" Label="Recipe name" Class="mb-3" />
+        <MudTextField @bind-Value="_pastedIngredients" Label="Ingredients, one per line" Lines="8" Variant="Variant.Outlined"
+                      Placeholder="2 cups flour&#10;1 tsp salt&#10;3 eggs, beaten" />
+        <MudTextField @bind-Value="_pastedInstructions" Label="Instructions (optional)" Lines="5" Variant="Variant.Outlined" Class="mt-3" />
+        <MudButton Class="mt-3" Color="Color.Primary" Variant="Variant.Filled" OnClick="UsePasted"
+                   Disabled="@(string.IsNullOrWhiteSpace(_pastedName) || string.IsNullOrWhiteSpace(_pastedIngredients))">Review ingredients</MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudForm @ref="_form">
+        <MudPaper Class="pa-4 mb-4">
+            <MudGrid>
+                <MudItem xs="12" md="8">
+                    <MudTextField @bind-Value="_name" Label="Name" Required="true" RequiredError="Name is required" />
+                </MudItem>
+                <MudItem xs="4" md="2">
+                    <MudNumericField T="int" @bind-Value="_servings" Label="Servings" Min="1" />
+                </MudItem>
+                <MudItem xs="4" md="1">
+                    <MudNumericField T="int?" @bind-Value="_prepMinutes" Label="Prep (min)" Min="0" HideSpinButtons="true" />
+                </MudItem>
+                <MudItem xs="4" md="1">
+                    <MudNumericField T="int?" @bind-Value="_cookMinutes" Label="Cook (min)" Min="0" HideSpinButtons="true" />
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Class="pa-4 mb-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                <MudText Typo="Typo.h6">Ingredients</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">@Summary</MudText>
+                <MudSpacer />
+                @if (_rows.Any(r => r.Decision == Decision.Undecided))
+                {
+                    <MudButton OnClick="CreateAllUndecided">Create all undecided as new</MudButton>
+                }
+            </MudStack>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mb-2">
+                Nothing is added to your ingredients until you save. For each line, choose one of yours, create a new one, or leave it out.
+            </MudText>
+
+            @foreach (var row in _rows)
+            {
+                <MudDivider Class="my-3" />
+                <MudText @key="@($"line-{row.Number}")" Typo="Typo.caption" Class="mud-text-secondary">@row.Line</MudText>
+                <MudGrid @key="row.Number" Spacing="2" Class="align-end">
+                    <MudItem xs="4" md="1">
+                        <MudNumericField T="decimal" @bind-Value="row.Quantity" Label="Qty" Min="0" HideSpinButtons="true" />
+                    </MudItem>
+                    <MudItem xs="8" md="2">
+                        <EnumSelect TEnum="Unit" @bind-Value="row.Unit" Label="Unit" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudSelect T="Decision" Value="row.Decision" ValueChanged="@(d => row.Decision = d)" Label="Ingredient"
+                                   Error="@(row.Decision == Decision.Undecided)" RelativeWidth="DropdownWidth.Adaptive">
+                            <MudSelectItem T="Decision" Value="Decision.Undecided">Choose…</MudSelectItem>
+                            <MudSelectItem T="Decision" Value="Decision.Existing">Use one of mine</MudSelectItem>
+                            <MudSelectItem T="Decision" Value="Decision.New">Create new</MudSelectItem>
+                            <MudSelectItem T="Decision" Value="Decision.Skip">Leave out</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        @switch (row.Decision)
+                        {
+                            case Decision.Existing:
+                                <IngredientPicker @bind-Value="row.Existing" Ingredients="_ingredients" Label="Which of yours" />
+                                break;
+
+                            case Decision.New:
+                                <MudStack Row="true">
+                                    <MudTextField @bind-Value="row.NewName" Label="New ingredient's name" Required="true" RequiredError="Give it a name" />
+                                    <EnumSelect TEnum="IngredientCategory" @bind-Value="row.NewCategory" Label="Category" />
+                                </MudStack>
+                                break;
+
+                            case Decision.Skip:
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">Won't be part of the recipe.</MudText>
+                                break;
+                        }
+
+                        @if (row.Decision is Decision.Undecided or Decision.New && row.Similar.Count > 0)
+                        {
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Spacing="1" Class="mt-1">
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">You already have:</MudText>
+                                @foreach (var similar in row.Similar)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => UseExisting(row, similar))">@similar.Name</MudChip>
+                                }
+                            </MudStack>
+                        }
+                    </MudItem>
+                    @if (row.Decision != Decision.Skip)
+                    {
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="row.Note" Label="Note" Placeholder="e.g. diced" />
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        </MudPaper>
+
+        <MudPaper Class="pa-4 mb-4">
+            <MudText Typo="Typo.h6" Class="mb-2">Instructions</MudText>
+            <MudTextField @bind-Value="_instructions" Lines="10" Sizing="InputSizing.Auto" Variant="Variant.Outlined" />
+        </MudPaper>
+    </MudForm>
+
+    <MudStack Row="true" Class="mb-6">
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync">Save recipe</MudButton>
+        <MudButton OnClick="StartOver">Start over</MudButton>
+    </MudStack>
+}
+
+@code {
+    private enum Decision
+    {
+        Undecided,
+        Existing,
+        New,
+        Skip
+    }
+
+    // One line of the recipe's ingredient list, and what the person importing has decided about it.
+    private sealed class Row
+    {
+        public int Number { get; init; }
+        public string Line { get; init; } = "";
+        public decimal Quantity { get; set; }
+        public Unit Unit { get; set; }
+        public string? Note { get; set; }
+        public Decision Decision { get; set; }
+        public Ingredient? Existing { get; set; }
+        public string? NewName { get; set; }
+        public IngredientCategory NewCategory { get; set; } = IngredientCategory.Other;
+        public IReadOnlyList<Ingredient> Similar { get; init; } = [];
+    }
+
+    private MudForm _form = null!;
+    private List<Ingredient> _ingredients = [];
+
+    private string? _address;
+    private bool _fetching;
+    private string? _fetchError;
+    private string? _pastedName;
+    private string? _pastedIngredients;
+    private string? _pastedInstructions;
+
+    // Null while choosing where to import from; the lines to review once a recipe has been read.
+    private List<Row>? _rows;
+    private string _name = "";
+    private int _servings = 4;
+    private int? _prepMinutes;
+    private int? _cookMinutes;
+    private string? _instructions;
+    private string? _description;
+    private string? _sourceUrl;
+
+    private string Summary
+    {
+        get
+        {
+            var undecided = _rows!.Count(r => r.Decision == Decision.Undecided);
+            var created = _rows!.Count(r => r.Decision == Decision.New);
+            return undecided > 0
+                ? $"{undecided} of {_rows!.Count} still to decide"
+                : created == 0 ? "No new ingredients will be created" : $"{created} new {(created == 1 ? "ingredient" : "ingredients")} will be created";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _ingredients = await db.Ingredients.AsNoTracking().OrderBy(i => i.Name).ToListAsync();
+    }
+
+    private async Task OnAddressKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_fetching && !string.IsNullOrWhiteSpace(_address))
+        {
+            await FetchAsync();
+        }
+    }
+
+    private async Task FetchAsync()
+    {
+        _fetching = true;
+        _fetchError = null;
+        StateHasChanged();
+        try
+        {
+            var (recipe, error) = await Importer.FetchAsync(_address);
+            _fetchError = error;
+            if (recipe is not null)
+            {
+                Review(recipe);
+            }
+        }
+        finally
+        {
+            _fetching = false;
+        }
+    }
+
+    private void UsePasted() => Review(new ImportedRecipe(
+        _pastedName!.Trim(), null, null, null, null,
+        string.IsNullOrWhiteSpace(_pastedInstructions) ? null : _pastedInstructions.Trim(),
+        _pastedIngredients!.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+        null));
+
+    private void Review(ImportedRecipe recipe)
+    {
+        _name = recipe.Name;
+        _description = recipe.Description;
+        _servings = recipe.Servings ?? 4;
+        _prepMinutes = recipe.PrepMinutes;
+        _cookMinutes = recipe.CookMinutes;
+        _instructions = recipe.Instructions;
+        _sourceUrl = recipe.SourceUrl;
+
+        _rows = [];
+        foreach (var line in recipe.IngredientLines)
+        {
+            if (IngredientLineParser.Parse(line) is not { } parsed)
+            {
+                continue;
+            }
+
+            // Only an unmistakable match is chosen in advance. Anything else waits for a decision, with
+            // look-alikes offered, so that importing never adds a near-duplicate on its own.
+            var match = IngredientMatcher.Match(parsed.Name, _ingredients);
+            _rows.Add(new Row
+            {
+                Number = _rows.Count,
+                Line = line,
+                Quantity = parsed.Quantity,
+                Unit = parsed.Unit,
+                Note = parsed.Note,
+                Decision = match.Exact is null ? Decision.Undecided : Decision.Existing,
+                Existing = match.Exact,
+                NewName = IngredientMatcher.Tidy(parsed.Name),
+                Similar = match.Similar.Where(i => i != match.Exact).ToList()
+            });
+        }
+
+        if (_rows.Count == 0)
+        {
+            _rows = null;
+            _fetchError = "No ingredient lines could be read from that.";
+        }
+    }
+
+    private static void UseExisting(Row row, Ingredient ingredient)
+    {
+        row.Decision = Decision.Existing;
+        row.Existing = ingredient;
+    }
+
+    private void CreateAllUndecided()
+    {
+        foreach (var row in _rows!.Where(r => r.Decision == Decision.Undecided))
+        {
+            row.Decision = Decision.New;
+        }
+    }
+
+    private void StartOver()
+    {
+        _rows = null;
+        _fetchError = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        await _form.ValidateAsync();
+        var rows = _rows!;
+        if (rows.Any(r => r.Decision == Decision.Undecided))
+        {
+            Snackbar.Add("Decide what to do with every ingredient line first.", Severity.Warning);
+            return;
+        }
+
+        if (!_form.IsValid || rows.Any(r => r.Decision == Decision.Existing && r.Existing is null))
+        {
+            Snackbar.Add("Fix the highlighted fields before saving.", Severity.Warning);
+            return;
+        }
+
+        // A "new" ingredient whose name one of yours already has would be a duplicate, which is the one thing
+        // this screen exists to prevent. Say which, rather than quietly reusing or failing.
+        var clash = rows.Where(r => r.Decision == Decision.New)
+            .Select(r => _ingredients.FirstOrDefault(i => i.Name.Equals(r.NewName!.Trim(), StringComparison.OrdinalIgnoreCase)))
+            .FirstOrDefault(i => i is not null);
+        if (clash is not null)
+        {
+            Snackbar.Add($"You already have an ingredient called \"{clash.Name}\". Choose \"Use one of mine\" for that line, or give the new one a different name.", Severity.Warning);
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        // Two lines given the same new name share one new ingredient.
+        var created = new Dictionary<string, Ingredient>(StringComparer.OrdinalIgnoreCase);
+        var recipe = new Recipe
+        {
+            Name = _name.Trim(),
+            Description = _description,
+            Servings = _servings,
+            PrepMinutes = _prepMinutes,
+            CookMinutes = _cookMinutes,
+            Instructions = _instructions,
+            SourceUrl = _sourceUrl
+        };
+
+        foreach (var row in rows.Where(r => r.Decision != Decision.Skip))
+        {
+            var line = new RecipeIngredient { Quantity = row.Quantity, Unit = row.Unit, Note = string.IsNullOrWhiteSpace(row.Note) ? null : row.Note.Trim() };
+            if (row.Decision == Decision.Existing)
+            {
+                line.IngredientId = row.Existing!.Id;
+            }
+            else
+            {
+                var name = row.NewName!.Trim();
+                if (!created.TryGetValue(name, out var ingredient))
+                {
+                    ingredient = created[name] = new Ingredient { Name = name, Category = row.NewCategory, DefaultUnit = row.Unit };
+                }
+
+                line.Ingredient = ingredient;
+            }
+
+            recipe.Ingredients.Add(line);
+        }
+
+        db.Recipes.Add(recipe);
+        await db.SaveChangesAsync();
+
+        Snackbar.Add(created.Count == 0 ? "Recipe imported." : $"Recipe imported, with {created.Count} new {(created.Count == 1 ? "ingredient" : "ingredients")}.", Severity.Success);
+        Navigation.NavigateTo($"recipes/{recipe.Id}");
+    }
+}

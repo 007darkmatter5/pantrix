@@ -38,6 +38,20 @@ builder.Services.AddHttpClient<AddressLookupService>(client =>
 });
 
 builder.Services.AddHttpClient<StoreBrowserService>(client => client.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient<RecipeImportService>(client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(20);
+        client.MaxResponseContentBufferSize = 5 * 1024 * 1024;
+
+        // Recipe sites commonly refuse requests that don't look like a browser asking for a page.
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; Pantrix/1.0; recipe import)");
+        client.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml");
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        ConnectCallback = RecipeImportService.ConnectToPublicAddressAsync,
+        AutomaticDecompression = System.Net.DecompressionMethods.All
+    });
 
 // Everything needs a signed-in user unless it says otherwise ([AllowAnonymous]: the sign-in pages, static files, health check).
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
