@@ -77,7 +77,12 @@ Lookups happen only when someone presses **Look up**, one page at a time. If a s
 says so and you complete it in the browser yourself; it doesn't try to get past it. Automated use may be against a
 store's terms, and a site can change or block it at any time, so treat this as a convenience, not a guarantee.
 
-A browser container for Unraid (Compose Manager) or any Docker host:
+A browser container for Unraid (Compose Manager) or any Docker host. It shares a private Docker network with Pantrix,
+so the port that controls the browser is reachable by Pantrix and nothing else:
+
+```bash
+docker network create pantrix
+```
 
 ```yaml
 services:
@@ -92,27 +97,46 @@ services:
       PUID: "99"
       PGID: "100"
       CHROME_CLI: "--remote-debugging-port=9222"
+      # A sign-in for the browser's screen. Set both; the browser may be signed in to your store accounts.
+      CUSTOM_USER: "choose-a-username"
+      PASSWORD: "choose-a-password"
     ports:
       - "3011:3001"   # the browser's screen (https)
-      - "9223:9223"   # remote control, through the forwarder below
+    networks:
+      - pantrix
     volumes:
       - /mnt/user/appdata/pantrix-browser:/config
 
-  # Chrome only listens for remote control on its own loopback address; this passes the port on.
+  # Chrome only listens for remote control on its own loopback address; this passes the port on, inside the
+  # private network only. It is deliberately not listed under "ports".
   pantrix-browser-port:
     image: alpine/socat
     container_name: pantrix-browser-port
     restart: unless-stopped
     network_mode: "service:pantrix-browser"
     command: TCP-LISTEN:9223,fork,reuseaddr TCP:127.0.0.1:9222
+
+networks:
+  pantrix:
+    external: true
 ```
 
-1. Open `https://<host>:3011`, go to each store's website in that browser, and choose your store location.
-2. In Pantrix, on the Admin page, enter `http://<host>:9223` as the browser address and press Test.
-3. Give a store the **Browser lookup** method (H-E-B gets it automatically). **Look up** then appears on the Stores
+1. Put Pantrix on the same network: in its Unraid template set **Network Type** to `pantrix` (or add
+   `networks: [pantrix]` to its Compose service).
+2. Open `https://<host>:3011`, go to each store's website in that browser, and choose your store location.
+3. In Pantrix, on the Admin page, enter `http://pantrix-browser:9223` as the browser address and press Test.
+4. Give a store the **Browser lookup** method (H-E-B gets it automatically). **Look up** then appears on the Stores
    page and in the ingredient dialog.
 
-Anyone who can reach port 9223 can control that browser, so don't expose it beyond your own network.
+### Signing in to store accounts
+
+You can sign in to a store's website in that browser, and it stays signed in: the session lives in the browser's own
+profile (`/config`), so lookups then run as you, with your account's store already selected. Pantrix never sees or
+stores the password, and doesn't fill in sign-in forms.
+
+A signed-in browser is worth protecting. Whoever can control it can act as you on those sites, which may include
+placing an order. That is why the control port above isn't published to your network and the browser's screen has its
+own sign-in. Automated use is also then tied to your account, not just your internet address.
 
 ## Address lookup
 
