@@ -213,7 +213,7 @@ public class StoreBrowserService(HttpClient http, IDbContextFactory<PantrixDbCon
             {
                 null => new([], "The page didn't load."),
                 { Blocked: true } => new([], HumanCheck(store.Name)),
-                { Matches.Count: 0 } => new([], "The page loaded but showed no aisles. Check the connected browser shows a store selected on the site."),
+                { Matches.Count: 0 } => new([], "The page loaded but showed no aisles. Check the connected browser shows a store selected on the site. A store that only shows aisles in its phone app has to stay manual."),
                 _ => new(reading.Matches.Select(m => new AisleMatch(m.Name, m.Aisle, m.Url)).ToList(), Notice: notice)
             };
         }
