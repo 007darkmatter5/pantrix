@@ -8,10 +8,11 @@ namespace Pantrix.Services;
 /// <param name="Source">The best method that works for it.</param>
 /// <param name="SearchUrl">For browser lookup, the chain's search page with {item} where the search words go.</param>
 /// <param name="Tested">True when the method has been tried against the real site, not just reasoned about.</param>
+/// <param name="Summary">The reason for the method in a few words, for lists.</param>
 /// <param name="Notes">What someone setting up the store needs to know.</param>
 /// <param name="Locations">How the chain's website is told which location to show; null when Pantrix doesn't know.</param>
 public record KnownChain(
-    string Name, string[] Aliases, AisleSource Source, string? SearchUrl, bool Tested, string Notes,
+    string Name, string[] Aliases, AisleSource Source, string? SearchUrl, bool Tested, string Summary, string Notes,
     LocationPicker? Locations = null);
 
 /// <summary>How a chain's website selects one of its locations, and where its location numbers can be found.</summary>
@@ -31,6 +32,7 @@ public static partial class StoreCatalog
     public static readonly IReadOnlyList<KnownChain> Chains =
     [
         new("H-E-B", ["heb"], AisleSource.Browser, "https://www.heb.com/search?q={item}", Tested: true,
+            "Aisles read from heb.com",
             "Search results on heb.com show each product's aisle. Aisles differ between locations, so give each " +
             "store its H-E-B store number and lookups will use that location.",
             new LocationPicker("SHOPPING_STORE_ID", "www.heb.com", "https://www.heb.com/store-locations?address={place}", "/heb-store/",
@@ -38,10 +40,12 @@ public static partial class StoreCatalog
                 "(…/west-hopkins-h-e-b-455) is the store number.")),
 
         new("Sam's Club", ["samsclub", "sams"], AisleSource.Manual, null, Tested: true,
+            "Aisles are only in its phone app",
             "The Sam's Club website doesn't show where items are in the club; only their phone app does. " +
             "Enter aisles yourself as you shop."),
 
         new("Target", ["target"], AisleSource.Manual, null, Tested: true,
+            "Website doesn't list aisles",
             "Target's search results don't list aisles, and its site asks for a press-and-hold human check after a " +
             "couple of automated page views. Enter aisles yourself as you shop.")
     ];

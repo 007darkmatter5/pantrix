@@ -20,39 +20,57 @@
 
 <MudExpansionPanels Class="mb-4">
     <MudExpansionPanel Text="How aisles are found for each of your stores">
-        <MudText Typo="Typo.body2" Class="mb-2">
-            Every store works with <b>manual</b> aisles. Some also work with <b>browser lookup</b>, which reads aisles from the
-            store's website through a browser connected on the Admin page@(_browserConnected ? "" : " (none is connected yet)").
-        </MudText>
-
         @if (_stores.Count == 0)
         {
-            <MudText Typo="Typo.body2" Color="Color.Secondary">Add a store to see how its aisles can be found.</MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">Add a store to see how its aisles can be found.</MudText>
         }
 
-        @foreach (var store in _stores)
+        @{
+            var manual = _stores.Where(s => s.AisleSource == AisleSource.Manual).ToList();
+            var browser = _stores.Where(s => s.AisleSource == AisleSource.Browser).ToList();
+        }
+
+        @if (manual.Count > 0)
         {
-            var chain = StoreCatalog.Find(store.Name);
-            <MudStack @key="store.Id" Row="true" AlignItems="AlignItems.Start" Wrap="Wrap.Wrap" Spacing="2" Class="mt-3">
-                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
-                         Color="@(store.AisleSource == AisleSource.Browser ? Color.Primary : Color.Default)">@StoreCatalog.Describe(store.AisleSource)</MudChip>
-                <div style="flex: 1; min-width: 220px">
-                    <MudText Typo="Typo.subtitle2">@store.DisplayName</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">@MethodReason(store, chain)</MudText>
-                </div>
-                @* Offered for known chains too: what Pantrix knows is a snapshot, and a site can start showing aisles. *@
-                @if (store.AisleSource == AisleSource.Manual && _browserConnected)
-                {
-                    <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.TravelExplore" OnClick="@(() => CheckWebsiteAsync(store))">Check website</MudButton>
-                }
-            </MudStack>
+            <MudText Typo="Typo.overline">Manual: you type the aisles in</MudText>
+            @foreach (var store in manual)
+            {
+                <MudStack @key="store.Id" Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudText Typo="Typo.body2">@store.DisplayName</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@MethodReason(store)</MudText>
+                    <MudSpacer />
+                    @* Offered for known chains too: what Pantrix knows is a snapshot, and a site can start showing aisles. *@
+                    @if (_browserConnected)
+                    {
+                        <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.TravelExplore" OnClick="@(() => CheckWebsiteAsync(store))">Check website</MudButton>
+                    }
+                </MudStack>
+            }
         }
 
-        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-4">
-            Chains Pantrix already knows:
-            @string.Join(", ", StoreCatalog.Chains.Select(c => $"{c.Name} ({StoreCatalog.Describe(c.Source).ToLowerInvariant()})")).
-            You can change any store's method by editing it.
-        </MudText>
+        @if (manual.Count > 0 && browser.Count > 0)
+        {
+            <MudDivider Class="my-3" />
+        }
+
+        @if (browser.Count > 0)
+        {
+            <MudText Typo="Typo.overline">Browser lookup: read from the store's website</MudText>
+            @foreach (var store in browser)
+            {
+                <MudStack @key="store.Id" Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="py-1">
+                    <MudText Typo="Typo.body2">@store.DisplayName</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@MethodReason(store)</MudText>
+                </MudStack>
+            }
+        }
+
+        @if (!_browserConnected && _stores.Count > 0)
+        {
+            <MudText Typo="Typo.caption" Class="mud-text-secondary mt-3" Style="display: block">
+                No browser is connected on the Admin page, so lookups and website checks are switched off.
+            </MudText>
+        }
     </MudExpansionPanel>
 </MudExpansionPanels>
 
@@ -188,34 +206,23 @@
         await LoadAsync();
     }
 
-    // Why a store has the method it has, in terms of what is known about it.
-    private string MethodReason(Store store, KnownChain? chain)
+    // Why a store has the method it has, in a few words.
+    private static string MethodReason(Store store)
     {
+        var chain = StoreCatalog.Find(store.Name);
         if (chain is not null && chain.Source == store.AisleSource)
         {
-            if (chain.Source == AisleSource.Manual)
-            {
-                return chain.Notes + (_browserConnected ? " That was true when Pantrix was last updated; \"Check website\" tests it again." : "");
-            }
-
-            return chain.Locations is not null && string.IsNullOrWhiteSpace(store.WebsiteStoreId)
-                ? $"{chain.Notes} Its store number will be worked out from its address on the first lookup."
-                : chain.Notes;
+            return chain.Locations is not null && StoreCatalog.CleanLocationId(store.WebsiteStoreId) is { } number
+                ? $"{chain.Summary}, store {number}"
+                : chain.Summary;
         }
 
         if (store.AisleSource == AisleSource.Browser)
         {
-            return "Set to look aisles up using the search address you gave it.";
+            return "Uses the search address you gave it";
         }
 
-        if (chain is not null)
-        {
-            return $"Set to manual by you. Pantrix can use {StoreCatalog.Describe(chain.Source).ToLowerInvariant()} for {chain.Name}; edit the store to switch back.";
-        }
-
-        return _browserConnected
-            ? "Pantrix doesn't know this store, so it starts as manual. Use \"Check website\" to find out whether its site shows aisles."
-            : "Pantrix doesn't know this store, so it starts as manual. Once a browser is connected on the Admin page, you can check whether its website shows aisles.";
+        return chain is not null ? "Set to manual by you" : "No aisles found on its website so far";
     }
 
     // Tries the store's website for aisles and, if they are there, switches the store to browser lookup.
