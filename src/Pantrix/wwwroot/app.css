@@ -16,3 +16,60 @@
         padding: 4px;
     }
 }
+
+/* Arcade theme. Its colours, fonts and square corners are set in AppThemes; this is what a MudBlazor theme can't say. */
+html[data-theme="arcade"] {
+    -webkit-font-smoothing: none;
+    font-smooth: never;
+}
+
+/* Faint scanlines over the whole screen, like a CRT. */
+html[data-theme="arcade"] body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    pointer-events: none;
+    background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, .16) 0 1px, transparent 1px 3px);
+}
+
+/* Anything that would have cast a shadow gets a hard outline instead. */
+html[data-theme="arcade"] [class*="mud-elevation-"]:not(.mud-elevation-0):not(.mud-appbar):not(.mud-drawer),
+html[data-theme="arcade"] .mud-dialog {
+    border: 2px solid var(--mud-palette-lines-default);
+    box-shadow: none;
+}
+
+html[data-theme="arcade"] .mud-appbar {
+    box-shadow: 0 4px 0 var(--mud-palette-lines-default);
+}
+
+html[data-theme="arcade"] .mud-drawer {
+    box-shadow: inset -2px 0 0 var(--mud-palette-table-lines);
+}
+
+html[data-theme="arcade"] .mud-appbar .mud-typography-h6 {
+    text-shadow: 2px 2px 0 var(--mud-palette-secondary);
+}
+
+/* The few shapes that stay round whatever the theme's corner size. */
+html[data-theme="arcade"] .mud-chip,
+html[data-theme="arcade"] .mud-icon-button,
+html[data-theme="arcade"] .mud-fab {
+    border-radius: 0;
+}
+
+/* Bevelled buttons that sink when pressed. */
+html[data-theme="arcade"] .mud-button-filled:not(:disabled),
+html[data-theme="arcade"] .mud-button-filled:not(:disabled):hover,
+html[data-theme="arcade"] .mud-button-filled:not(:disabled):focus-visible {
+    box-shadow: inset -3px -3px 0 rgba(0, 0, 0, .35), inset 3px 3px 0 rgba(255, 255, 255, .3);
+}
+
+html[data-theme="arcade"] .mud-button-filled:not(:disabled):active {
+    box-shadow: inset 3px 3px 0 rgba(0, 0, 0, .35);
+}
+
+html[data-theme="arcade"] .mud-button-outlined {
+    border-width: 2px;
+}

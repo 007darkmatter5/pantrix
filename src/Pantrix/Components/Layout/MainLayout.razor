@@ -2,7 +2,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 
-<MudThemeProvider IsDarkMode="_darkMode" />
+<MudThemeProvider Theme="_theme.Theme" IsDarkMode="@(_theme.AlwaysDark || _darkMode)" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -17,8 +17,19 @@
         <img src="@Assets["icon.svg"]" alt="" width="28" height="28" class="ml-2" />
         <MudText Typo="Typo.h6" Class="ml-2">Pantrix</MudText>
         <MudSpacer />
-        <MudIconButton Icon="@(_darkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
-                       Color="Color.Inherit" OnClick="ToggleDarkModeAsync" aria-label="Toggle dark mode" />
+        <MudMenu Icon="@Icons.Material.Filled.Palette" Color="Color.Inherit" AriaLabel="Choose theme"
+                 AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+            @foreach (var theme in AppThemes.All)
+            {
+                <MudMenuItem Icon="@(theme == _theme ? Icons.Material.Filled.RadioButtonChecked : Icons.Material.Filled.RadioButtonUnchecked)"
+                             OnClick="@(() => SetThemeAsync(theme))">@theme.Name</MudMenuItem>
+            }
+        </MudMenu>
+        @if (!_theme.AlwaysDark)
+        {
+            <MudIconButton Icon="@(_darkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                           Color="Color.Inherit" OnClick="ToggleDarkModeAsync" aria-label="Toggle dark mode" />
+        }
         <AuthorizeView>
             <MudText Typo="Typo.body2" Class="mx-2">@context.User.Identity?.Name</MudText>
             <MudTooltip Text="Sign out">
@@ -46,9 +57,11 @@
 </div>
 
 @code {
+    private const string ThemeKey = "pantrix.theme";
     private const string DarkModeKey = "pantrix.darkMode";
 
     private bool _drawerOpen = true;
+    private AppTheme _theme = AppThemes.All[0];
     private bool _darkMode;
     private bool _themeLoaded;
 
@@ -61,6 +74,7 @@
 
         try
         {
+            _theme = AppThemes.Find(await JS.InvokeAsync<string?>("localStorage.getItem", ThemeKey));
             _darkMode = await JS.InvokeAsync<string?>("localStorage.getItem", DarkModeKey) == "true";
         }
         catch (JSException)
@@ -68,9 +82,27 @@
             // Storage can be blocked (e.g. private browsing); the app still works with the default theme.
         }
 
+        await MarkPageWithThemeAsync();
         _themeLoaded = true;
         StateHasChanged();
     }
+
+    private async Task SetThemeAsync(AppTheme theme)
+    {
+        _theme = theme;
+        await MarkPageWithThemeAsync();
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", ThemeKey, theme.Id);
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    // The theme's own CSS in app.css hangs off this attribute.
+    private ValueTask MarkPageWithThemeAsync() =>
+        JS.InvokeVoidAsync("document.documentElement.setAttribute", "data-theme", _theme.Id);
 
     private async Task ToggleDarkModeAsync()
     {
