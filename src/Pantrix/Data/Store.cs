@@ -1,5 +1,15 @@
 namespace Pantrix.Data;
 
+/// <summary>How a store's aisles get into Pantrix.</summary>
+public enum AisleSource
+{
+    /// <summary>Typed in by hand; the only choice when the store publishes no aisles online.</summary>
+    Manual,
+
+    /// <summary>Read from the store's website through the browser the admin has connected.</summary>
+    Browser
+}
+
 public class Store : IKitchenOwned
 {
     public int Id { get; set; }
@@ -23,6 +33,14 @@ public class Store : IKitchenOwned
     public string? OsmPlaceId { get; set; }
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
+
+    public AisleSource AisleSource { get; set; }
+
+    /// <summary>
+    /// For <see cref="AisleSource.Browser"/>: the address of the store website's search page, with {item} where
+    /// the search words go, e.g. "https://www.heb.com/search?q={item}".
+    /// </summary>
+    public string? SearchUrl { get; set; }
 
     public List<StoreAisle> Aisles { get; set; } = [];
 

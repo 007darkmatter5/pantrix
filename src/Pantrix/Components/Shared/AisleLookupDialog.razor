@@ -1,0 +1,83 @@
+@inject StoreBrowserService Browser
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Row="true" AlignItems="AlignItems.End">
+            <MudTextField @bind-Value="_query" Label="@($"Search {Store.Name} for")" Immediate="true" OnKeyDown="OnKeyDown" AutoFocus="true" />
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SearchAsync" Disabled="@(_searching || string.IsNullOrWhiteSpace(_query))">Search</MudButton>
+        </MudStack>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">
+            Looks on @Store.Name's website, using whichever store location is selected in the connected browser.
+        </MudText>
+
+        @if (_searching)
+        {
+            <MudProgressLinear Indeterminate="true" Class="mt-3" />
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">Opening the store's site. This can take up to half a minute.</MudText>
+        }
+        else if (_result?.Error is { } error)
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">@error</MudAlert>
+        }
+        else if (_result is not null)
+        {
+            <MudList T="AisleMatch" Dense="true" Class="mt-2" Style="max-height: 50vh; overflow-y: auto">
+                @foreach (var match in _result.Matches)
+                {
+                    <MudListItem T="AisleMatch" OnClick="@(() => MudDialog.Close(DialogResult.Ok(match)))">
+                        <MudStack Row="true" AlignItems="AlignItems.Center">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">@AisleOrder.Title(match.Aisle)</MudChip>
+                            <MudText Typo="Typo.body2">@match.Name</MudText>
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private string _query = "";
+    private bool _searching;
+    private AisleSearchResult? _result;
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Store Store { get; set; } = null!;
+
+    /// <summary>What to search for to begin with, usually the product the ingredient is normally bought as.</summary>
+    [Parameter] public string? Query { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _query = Query?.Trim() ?? "";
+        if (_query.Length > 0)
+        {
+            await SearchAsync();
+        }
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_searching && !string.IsNullOrWhiteSpace(_query))
+        {
+            await SearchAsync();
+        }
+    }
+
+    private async Task SearchAsync()
+    {
+        _searching = true;
+        StateHasChanged();
+        try
+        {
+            _result = await Browser.SearchAsync(Store, _query);
+        }
+        finally
+        {
+            _searching = false;
+        }
+    }
+}

@@ -37,6 +37,8 @@ builder.Services.AddHttpClient<AddressLookupService>(client =>
     client.DefaultRequestHeaders.UserAgent.ParseAdd("Pantrix/1.0 (personal meal planning app)");
 });
 
+builder.Services.AddHttpClient<StoreBrowserService>(client => client.Timeout = TimeSpan.FromSeconds(15));
+
 // Everything needs a signed-in user unless it says otherwise ([AllowAnonymous]: the sign-in pages, static files, health check).
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>

@@ -2,6 +2,7 @@
 @inject IDbContextFactory<PantrixDbContext> DbFactory
 @inject IDialogService DialogService
 @inject StoreAisleService StoreAisles
+@inject StoreBrowserService Browser
 
 <PageTitle>Stores</PageTitle>
 
@@ -17,6 +18,31 @@
     A shopping list with a store picked then sorts by aisle.
 </MudAlert>
 
+<MudExpansionPanels Class="mb-4">
+    <MudExpansionPanel Text="Which stores can look aisles up for you?">
+        <MudText Typo="Typo.body2" Class="mb-2">
+            Every store works with <b>manual</b> aisles. Some also work with <b>browser lookup</b>, which reads aisles from the
+            store's website through a browser connected on the Admin page@(_browserConnected ? "" : " (none is connected yet)").
+        </MudText>
+        <MudTable Breakpoint="Breakpoint.None" Items="StoreCatalog.Chains" Dense="true" Elevation="0">
+            <HeaderContent>
+                <MudTh>Store</MudTh>
+                <MudTh>Method</MudTh>
+                <MudTh Class="d-none d-sm-table-cell">Notes</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Name</MudTd>
+                <MudTd>@StoreCatalog.Describe(context.Source)</MudTd>
+                <MudTd Class="d-none d-sm-table-cell">@context.Notes</MudTd>
+            </RowTemplate>
+        </MudTable>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">
+            A store that isn't listed can still try browser lookup: edit it, choose that method, and give it the address of its
+            website's search page. It works when the search results show text like "Aisle 12" beside each product.
+        </MudText>
+    </MudExpansionPanel>
+</MudExpansionPanels>
+
 @if (_stores.Count == 0)
 {
     <MudText>No stores yet.</MudText>
@@ -28,6 +54,10 @@
         <MudStack Row="true" AlignItems="AlignItems.Center">
             <MudText Typo="Typo.h6">@store.DisplayName</MudText>
             <MudText Typo="Typo.body2" Color="Color.Secondary">@store.Aisles.Count @(store.Aisles.Count == 1 ? "item" : "items") located</MudText>
+            <MudTooltip Text="@(store.AisleSource == AisleSource.Browser ? "Aisles can be looked up on this store's website" : "Aisles for this store are typed in")">
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                         Color="@(store.AisleSource == AisleSource.Browser ? Color.Primary : Color.Default)">@StoreCatalog.Describe(store.AisleSource)</MudChip>
+            </MudTooltip>
             <MudSpacer />
             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditAsync(store))" aria-label="Edit" />
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(store))" aria-label="Delete" />
@@ -49,6 +79,11 @@
             <MudItem xs="5" sm="3">
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => AddAisleAsync(store))"
                            Disabled="@(NewAisleFor(store).Ingredient is null || string.IsNullOrWhiteSpace(NewAisleFor(store).Aisle))">Add</MudButton>
+                @if (store.AisleSource == AisleSource.Browser && _browserConnected)
+                {
+                    <MudButton StartIcon="@Icons.Material.Filled.TravelExplore" OnClick="@(() => LookUpAsync(store))"
+                               Disabled="@(NewAisleFor(store).Ingredient is null)">Look up</MudButton>
+                }
             </MudItem>
         </MudGrid>
 
@@ -90,6 +125,7 @@
 
     private List<Store> _stores = [];
     private List<Ingredient> _ingredients = [];
+    private bool _browserConnected;
 
     // What is being typed into each store's "add an item" row, by store id.
     private readonly Dictionary<int, NewAisle> _newAisles = [];
@@ -112,8 +148,33 @@
         await LoadAsync();
     }
 
+    // Finds the item on the store's website and saves the aisle and product page of the one that's picked.
+    private async Task LookUpAsync(Store store)
+    {
+        if (NewAisleFor(store).Ingredient is not { } ingredient)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters<AisleLookupDialog>
+        {
+            { d => d.Store, store },
+            { d => d.Query, ingredient.ProductName ?? ingredient.Name }
+        };
+        var dialog = await DialogService.ShowAsync<AisleLookupDialog>(
+            $"Find {ingredient.Name} at {store.DisplayName}", parameters, new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small });
+        if ((await dialog.Result) is { Canceled: false, Data: AisleMatch match })
+        {
+            await StoreAisles.SetAsync(store.Id, ingredient.Id, match.Aisle);
+            await StoreAisles.SetProductUrlAsync(store.Id, ingredient.Id, match.Url);
+            _newAisles.Remove(store.Id);
+            await LoadAsync();
+        }
+    }
+
     private async Task LoadAsync()
     {
+        _browserConnected = await Browser.GetAddressAsync() is not null;
         await using var db = await DbFactory.CreateDbContextAsync();
         _ingredients = await db.Ingredients.AsNoTracking().OrderBy(i => i.Name).ToListAsync();
         _stores = await db.Stores.AsNoTracking()

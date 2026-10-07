@@ -66,6 +66,54 @@ Then open `http://<host>:8080` and create your account.
 
 `/healthz` answers without signing in, for health checks.
 
+## Aisle lookups (optional)
+
+Every store works with aisles you type in. For stores that show aisles on their website, Pantrix can also look them
+up, by driving a real Chrome browser that you run next to it. Store sites turn away plain programs, so a real browser
+on your own network is the only thing they serve. The Stores page lists which chains are known to work; H-E-B is the
+one tested so far, and Sam's Club is manual because its website doesn't show aisles at all.
+
+Lookups happen only when someone presses **Look up**, one page at a time. If a site asks for a human check, Pantrix
+says so and you complete it in the browser yourself; it doesn't try to get past it. Automated use may be against a
+store's terms, and a site can change or block it at any time, so treat this as a convenience, not a guarantee.
+
+A browser container for Unraid (Compose Manager) or any Docker host:
+
+```yaml
+services:
+  pantrix-browser:
+    image: lscr.io/linuxserver/chromium:latest
+    container_name: pantrix-browser
+    restart: unless-stopped
+    shm_size: "1gb"
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      PUID: "99"
+      PGID: "100"
+      CHROME_CLI: "--remote-debugging-port=9222"
+    ports:
+      - "3011:3001"   # the browser's screen (https)
+      - "9223:9223"   # remote control, through the forwarder below
+    volumes:
+      - /mnt/user/appdata/pantrix-browser:/config
+
+  # Chrome only listens for remote control on its own loopback address; this passes the port on.
+  pantrix-browser-port:
+    image: alpine/socat
+    container_name: pantrix-browser-port
+    restart: unless-stopped
+    network_mode: "service:pantrix-browser"
+    command: TCP-LISTEN:9223,fork,reuseaddr TCP:127.0.0.1:9222
+```
+
+1. Open `https://<host>:3011`, go to each store's website in that browser, and choose your store location.
+2. In Pantrix, on the Admin page, enter `http://<host>:9223` as the browser address and press Test.
+3. Give a store the **Browser lookup** method (H-E-B gets it automatically). **Look up** then appears on the Stores
+   page and in the ingredient dialog.
+
+Anyone who can reach port 9223 can control that browser, so don't expose it beyond your own network.
+
 ## Address lookup
 
 When you look up a store's address, what you typed is sent to [OpenStreetMap](https://www.openstreetmap.org/copyright)'s

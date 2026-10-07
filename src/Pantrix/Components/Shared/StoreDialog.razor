@@ -5,7 +5,8 @@
 <MudDialog>
     <DialogContent>
         <MudForm @ref="_form">
-            <MudTextField @bind-Value="_name" Label="Store" Placeholder="e.g. Sam's Club" Required="true" RequiredError="Store name is required" AutoFocus="true" />
+            <MudTextField T="string" Value="_name" ValueChanged="OnNameChanged" Immediate="true" Label="Store" Placeholder="e.g. Sam's Club"
+                          Required="true" RequiredError="Store name is required" AutoFocus="true" />
             <MudTextField @bind-Value="_location" Label="Location" Placeholder="e.g. neighborhood or store number" Class="mt-3"
                           HelperText="A short label to tell locations apart. Aisles are remembered separately for each one." />
             <MudTextField @bind-Value="_streetAddress" Label="Street address" Immediate="true" Class="mt-3"
@@ -40,6 +41,26 @@
                     <MudTextField @bind-Value="_postalCode" Label="ZIP" />
                 </MudItem>
             </MudGrid>
+
+            <MudText Typo="Typo.subtitle2" Class="mt-4">How aisles are found</MudText>
+            @if (StoreCatalog.Find(_name) is { } chain)
+            {
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mt-1">
+                    Pantrix knows @chain.Name: @StoreCatalog.Describe(chain.Source).ToLowerInvariant(). @chain.Notes
+                </MudAlert>
+            }
+            <MudSelect T="AisleSource" Value="_aisleSource" ValueChanged="OnAisleSourceChanged" Label="Method" Class="mt-2">
+                @foreach (var source in Enum.GetValues<AisleSource>())
+                {
+                    <MudSelectItem T="AisleSource" Value="source">@StoreCatalog.Describe(source)</MudSelectItem>
+                }
+            </MudSelect>
+            @if (_aisleSource == AisleSource.Browser)
+            {
+                <MudTextField @bind-Value="_searchUrl" Label="Website search address" Placeholder="https://www.example.com/search?q={item}" Class="mt-3"
+                              Validation="_searchUrlValidation"
+                              HelperText="Search for something on the store's website, copy the address of the results page, and put {item} where your search words were." />
+            }
         </MudForm>
     </DialogContent>
     <DialogActions>
@@ -63,6 +84,14 @@
     private string? _city;
     private string? _state;
     private string? _postalCode;
+    private AisleSource _aisleSource;
+    private string? _searchUrl;
+
+    // Until someone picks a method themselves, it follows what Pantrix knows about the chain being typed.
+    private bool _methodChosen;
+
+    private readonly Func<string?, string?> _searchUrlValidation = url =>
+        StoreCatalog.BuildSearchUri(url, "test") is null ? "Enter an address that starts with https:// and contains {item}" : null;
 
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
 
@@ -79,6 +108,9 @@
             _city = Store.City;
             _state = Store.State;
             _postalCode = Store.PostalCode;
+            _aisleSource = Store.AisleSource;
+            _searchUrl = Store.SearchUrl;
+            _methodChosen = true;
             if (Store.OsmPlaceId is not null && Store.StreetAddress is not null)
             {
                 _place = new AddressSuggestion(null, Store.StreetAddress, null, null, null, Store.OsmPlaceId, Store.Latitude, Store.Longitude);
@@ -125,7 +157,28 @@
         _postalCode = address.PostalCode;
         if (string.IsNullOrWhiteSpace(_name) && !string.IsNullOrWhiteSpace(address.Name))
         {
-            _name = address.Name;
+            OnNameChanged(address.Name);
+        }
+    }
+
+    private void OnNameChanged(string? name)
+    {
+        _name = name ?? "";
+        if (!_methodChosen)
+        {
+            var chain = StoreCatalog.Find(_name);
+            _aisleSource = chain?.Source ?? AisleSource.Manual;
+            _searchUrl = chain?.SearchUrl;
+        }
+    }
+
+    private void OnAisleSourceChanged(AisleSource source)
+    {
+        _methodChosen = true;
+        _aisleSource = source;
+        if (source == AisleSource.Browser && string.IsNullOrWhiteSpace(_searchUrl))
+        {
+            _searchUrl = StoreCatalog.Find(_name)?.SearchUrl;
         }
     }
 
@@ -152,7 +205,9 @@
             PostalCode = Clean(_postalCode),
             OsmPlaceId = place?.PlaceId,
             Latitude = place?.Latitude,
-            Longitude = place?.Longitude
+            Longitude = place?.Longitude,
+            AisleSource = _aisleSource,
+            SearchUrl = _aisleSource == AisleSource.Browser ? Clean(_searchUrl) : null
         };
 
         await using var db = await DbFactory.CreateDbContextAsync();

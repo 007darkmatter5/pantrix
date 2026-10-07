@@ -1,6 +1,8 @@
 @inject IDbContextFactory<PantrixDbContext> DbFactory
 @inject ISnackbar Snackbar
 @inject StoreAisleService StoreAisles
+@inject StoreBrowserService Browser
+@inject IDialogService DialogService
 
 <MudDialog>
     <DialogContent>
@@ -25,7 +27,16 @@
                             <MudTextField @bind-Value="entry.Aisle" Label="Aisle" />
                         </MudItem>
                         <MudItem xs="8">
-                            <MudTextField @bind-Value="entry.ProductUrl" Label="Product page" Placeholder="https://…" Validation="_linkValidation" />
+                            @if (store.AisleSource == AisleSource.Browser && _browserConnected)
+                            {
+                                <MudTextField @bind-Value="entry.ProductUrl" Label="Product page" Placeholder="https://…" Validation="_linkValidation"
+                                              Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.TravelExplore"
+                                              AdornmentAriaLabel="@($"Look up at {store.DisplayName}")" OnAdornmentClick="@(() => LookUpAsync(store, entry))" />
+                            }
+                            else
+                            {
+                                <MudTextField @bind-Value="entry.ProductUrl" Label="Product page" Placeholder="https://…" Validation="_linkValidation" />
+                            }
                         </MudItem>
                         <MudItem xs="1">
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => _entries.Remove(store.Id))"
@@ -70,6 +81,7 @@
     private Unit _defaultUnit = Unit.Each;
     private decimal? _minimumQuantity;
     private List<Store> _stores = [];
+    private bool _browserConnected;
 
     // What is known about the ingredient at each store that carries it, by store id. Only these stores are
     // listed, so the dialog stays short however many stores exist.
@@ -86,6 +98,7 @@
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         _stores = await db.Stores.AsNoTracking().OrderBy(s => s.Name).ThenBy(s => s.City).ThenBy(s => s.Location).ToListAsync();
+        _browserConnected = await Browser.GetAddressAsync() is not null;
 
         if (Ingredient is not null)
         {
@@ -109,6 +122,24 @@
         return Task.FromResult(string.IsNullOrWhiteSpace(text)
             ? available
             : available.Where(s => s.DisplayName.Contains(text, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    // Finds the ingredient on the store's website and fills in the aisle and product page of the one that's picked.
+    private async Task LookUpAsync(Store store, StoreEntry entry)
+    {
+        var query = string.IsNullOrWhiteSpace(_productName) ? _name : _productName;
+        var parameters = new DialogParameters<AisleLookupDialog> { { d => d.Store, store }, { d => d.Query, query } };
+        var dialog = await DialogService.ShowAsync<AisleLookupDialog>(
+            $"Find it at {store.DisplayName}", parameters, new DialogOptions { FullWidth = true, MaxWidth = MaxWidth.Small });
+        if ((await dialog.Result) is { Canceled: false, Data: AisleMatch match })
+        {
+            entry.Aisle = match.Aisle;
+            entry.ProductUrl = match.Url;
+            if (string.IsNullOrWhiteSpace(_productName))
+            {
+                _productName = match.Name;
+            }
+        }
     }
 
     private void AddPendingStore()

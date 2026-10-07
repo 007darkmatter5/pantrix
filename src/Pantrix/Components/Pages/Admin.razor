@@ -1,6 +1,7 @@
 @page "/admin"
 @inject CurrentUser CurrentUser
 @inject AccountService Accounts
+@inject StoreBrowserService Browser
 
 <PageTitle>Admin</PageTitle>
 
@@ -20,6 +21,28 @@ else if (_loaded)
             While this is on, anyone who can reach the sign-in page can sign up and gets a kitchen of their own.
             Turn it off once everyone you want has an account, especially if Pantrix is reachable from the internet.
         </MudText>
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mb-4">
+        <MudText Typo="Typo.h6">Browser for aisle lookups</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
+            Some stores show aisles on their website but turn away anything that isn't a real browser. Run a Chrome container next to
+            Pantrix with its remote-control port open, enter its address here, then open that browser once to visit each store's site
+            and choose your store. Pantrix only uses it when someone presses "Look up". Leave blank to switch lookups off.
+        </MudText>
+        <MudGrid Spacing="2" Class="align-end">
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_browserAddress" Label="Browser address" Placeholder="http://192.168.1.10:9222" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveBrowserAsync">Save</MudButton>
+                <MudButton OnClick="TestBrowserAsync" Disabled="@string.IsNullOrWhiteSpace(_browserAddress)">Test</MudButton>
+            </MudItem>
+        </MudGrid>
+        @if (_browserMessage is not null)
+        {
+            <MudAlert Severity="@(_browserOk ? Severity.Success : Severity.Warning)" Dense="true" Class="mt-2">@_browserMessage</MudAlert>
+        }
     </MudPaper>
 
     <MudTable Breakpoint="Breakpoint.None" Items="_users" Dense="true" Hover="true">
@@ -45,6 +68,9 @@ else if (_loaded)
     private bool _isAdmin;
     private bool _registrationOpen;
     private List<AppUser> _users = [];
+    private string? _browserAddress;
+    private bool _browserOk;
+    private string? _browserMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -53,9 +79,35 @@ else if (_loaded)
         {
             _registrationOpen = await Accounts.IsRegistrationOpenAsync();
             _users = await Accounts.GetUsersAsync();
+            _browserAddress = await Browser.GetAddressAsync();
         }
 
         _loaded = true;
+    }
+
+    private async Task TestBrowserAsync() => (_browserOk, _browserMessage) = await Browser.TestAsync(_browserAddress);
+
+    private async Task SaveBrowserAsync()
+    {
+        // Checked again here: the page may have been open since before the account stopped being an admin.
+        if ((await CurrentUser.GetAsync())?.IsAdmin != true)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_browserAddress))
+        {
+            await Browser.SetAddressAsync(null);
+            (_browserOk, _browserMessage) = (true, "Aisle lookups are switched off.");
+            return;
+        }
+
+        await TestBrowserAsync();
+        if (_browserOk)
+        {
+            await Browser.SetAddressAsync(_browserAddress);
+            _browserMessage += " Saved.";
+        }
     }
 
     private async Task SetRegistrationOpenAsync(bool open)

@@ -72,6 +72,7 @@ public class PantrixDbContext(DbContextOptions<PantrixDbContext> options) : DbCo
         configurationBuilder.Properties<IngredientCategory>().HaveConversion<string>();
         configurationBuilder.Properties<StorageLocation>().HaveConversion<string>();
         configurationBuilder.Properties<MealType>().HaveConversion<string>();
+        configurationBuilder.Properties<AisleSource>().HaveConversion<string>();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
