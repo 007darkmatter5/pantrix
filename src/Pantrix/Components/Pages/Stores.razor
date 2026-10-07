@@ -48,21 +48,25 @@
     <MudText>No stores yet.</MudText>
 }
 
+<MudExpansionPanels MultiExpansion="true">
 @foreach (var store in _stores)
 {
-    <MudPaper @key="store.Id" Class="pa-4 mb-3">
-        <MudStack Row="true" AlignItems="AlignItems.Center">
-            <MudText Typo="Typo.h6">@store.DisplayName</MudText>
-            <MudText Typo="Typo.body2" Color="Color.Secondary">@store.Aisles.Count @(store.Aisles.Count == 1 ? "item" : "items") located</MudText>
-            <MudTooltip Text="@(store.AisleSource == AisleSource.Browser ? "Aisles can be looked up on this store's website" : "Aisles for this store are typed in")">
+    <MudExpansionPanel @key="store.Id" Expanded="@_expanded.Contains(store.Id)" ExpandedChanged="@(open => SetExpanded(store, open))">
+        <TitleContent>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Spacing="2">
+                <MudText Typo="Typo.h6">@store.DisplayName</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">@store.Aisles.Count @(store.Aisles.Count == 1 ? "item" : "items") located</MudText>
                 <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
                          Color="@(store.AisleSource == AisleSource.Browser ? Color.Primary : Color.Default)">@StoreCatalog.Describe(store.AisleSource)</MudChip>
-            </MudTooltip>
-            <MudSpacer />
-            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditAsync(store))" aria-label="Edit" />
-            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(store))" aria-label="Delete" />
-        </MudStack>
-
+                <MudSpacer />
+                @* Kept from reaching the panel, so editing or deleting doesn't also open or close it. *@
+                <span @onclick:stopPropagation="true">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditAsync(store))" aria-label="@($"Edit {store.DisplayName}")" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(store))" aria-label="@($"Delete {store.DisplayName}")" />
+                </span>
+            </MudStack>
+        </TitleContent>
+        <ChildContent>
         @if (store.FormattedAddress.Length > 0)
         {
             <MudText Typo="Typo.body2" Color="Color.Secondary">@store.FormattedAddress</MudText>
@@ -113,8 +117,10 @@
                 </RowTemplate>
             </MudTable>
         }
-    </MudPaper>
+        </ChildContent>
+    </MudExpansionPanel>
 }
+</MudExpansionPanels>
 
 @code {
     private sealed class NewAisle
@@ -127,10 +133,25 @@
     private List<Ingredient> _ingredients = [];
     private bool _browserConnected;
 
+    // Which stores are open, by id, so they stay open when the page reloads its data after a change.
+    private readonly HashSet<int> _expanded = [];
+
     // What is being typed into each store's "add an item" row, by store id.
     private readonly Dictionary<int, NewAisle> _newAisles = [];
 
     protected override Task OnInitializedAsync() => LoadAsync();
+
+    private void SetExpanded(Store store, bool open)
+    {
+        if (open)
+        {
+            _expanded.Add(store.Id);
+        }
+        else
+        {
+            _expanded.Remove(store.Id);
+        }
+    }
 
     private NewAisle NewAisleFor(Store store) =>
         _newAisles.TryGetValue(store.Id, out var entry) ? entry : _newAisles[store.Id] = new NewAisle();
