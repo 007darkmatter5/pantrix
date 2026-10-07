@@ -42,6 +42,12 @@ public class Store : IKitchenOwned
     /// </summary>
     public string? SearchUrl { get; set; }
 
+    /// <summary>
+    /// The number the store's website knows this location by (H-E-B's West Hopkins store is 455). With it, a
+    /// lookup selects this location first; without it, the site shows whichever location the browser last used.
+    /// </summary>
+    public string? WebsiteStoreId { get; set; }
+
     public List<StoreAisle> Aisles { get; set; } = [];
 
     /// <summary>"Store - City State (Location)", leaving out whichever parts aren't filled in.</summary>

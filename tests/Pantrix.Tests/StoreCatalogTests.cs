@@ -38,6 +38,46 @@ public class StoreCatalogTests
         Assert.Null(StoreCatalog.ToSearchAddress(pasted));
     }
 
+    private static readonly (string Href, string Text)[] SanMarcosStores =
+    [
+        ("https://www.heb.com/heb-store/tx/san-marcos/west-hopkins-h-e-b-455", "West Hopkins H‑E‑B\n200 WEST HOPKINS ST.\nSan Marcos, TX 78666"),
+        ("https://www.heb.com/heb-store/tx/san-marcos/east-hopkins-h-e-b-243", "East Hopkins H‑E‑B\n641 EAST HOPKINS STREET\nSan Marcos, TX 78666"),
+        ("https://www.heb.com/heb-store/tx/san-marcos/mccarty-lane-h-e-b-822", "McCarty Lane H‑E‑B\n1202 McCarty Ln\nSan Marcos, TX 78666"),
+        ("https://www.heb.com/heb-store/tx/kyle/kyle-h-e-b-plus--14/", "Kyle H‑E‑B plus!\n5401 S FM 1626\nKyle, TX 78640")
+    ];
+
+    [Theory]
+    [InlineData("200 West Hopkins Street", "455", "West Hopkins H‑E‑B")]
+    [InlineData("641 E. Hopkins St", "243", "East Hopkins H‑E‑B")]
+    [InlineData("1202 mccarty lane", "822", "McCarty Lane H‑E‑B")]
+    [InlineData("5401 South FM 1626", "14", "Kyle H‑E‑B plus!")]
+    public void A_store_is_matched_to_its_location_on_the_store_finder_by_street_address(string street, string id, string label)
+    {
+        Assert.Equal((id, label), StoreCatalog.MatchLocation(street, SanMarcosStores));
+    }
+
+    [Theory]
+    [InlineData("300 West Hopkins Street")]
+    [InlineData("200 Main Street")]
+    [InlineData("West Hopkins Street")]
+    [InlineData("200")]
+    [InlineData(null)]
+    public void An_address_that_is_not_on_the_store_finder_matches_nothing(string? street)
+    {
+        Assert.Null(StoreCatalog.MatchLocation(street, SanMarcosStores));
+    }
+
+    [Theory]
+    [InlineData(" 455 ", "455")]
+    [InlineData("T-2412", "T-2412")]
+    [InlineData("455; path=/", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void A_location_number_is_only_passed_to_a_website_when_it_is_plain(string? typed, string? expected)
+    {
+        Assert.Equal(expected, StoreCatalog.CleanLocationId(typed));
+    }
+
     [Theory]
     [InlineData("Target", "Target")]
     [InlineData("Super Target", "Target")]

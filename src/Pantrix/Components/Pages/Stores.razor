@@ -186,7 +186,9 @@
     {
         if (chain is not null && chain.Source == store.AisleSource)
         {
-            return chain.Notes;
+            return chain.Locations is not null && store.AisleSource == AisleSource.Browser && string.IsNullOrWhiteSpace(store.WebsiteStoreId)
+                ? $"No {chain.Name} store number yet, so lookups show whichever location the browser last used. Edit the store to add it."
+                : chain.Notes;
         }
 
         if (store.AisleSource == AisleSource.Browser)

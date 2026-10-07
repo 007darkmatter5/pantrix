@@ -7,7 +7,7 @@
             <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SearchAsync" Disabled="@(_searching || string.IsNullOrWhiteSpace(_query))">Search</MudButton>
         </MudStack>
         <MudText Typo="Typo.caption" Color="Color.Secondary">
-            Looks on @Store.Name's website, using whichever store location is selected in the connected browser.
+            Looks on @Store.Name's website through the connected browser.
         </MudText>
 
         @if (_searching)
@@ -21,6 +21,10 @@
         }
         else if (_result is not null)
         {
+            @if (_result.Notice is { } notice)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">@notice</MudAlert>
+            }
             <MudList T="AisleMatch" Dense="true" Class="mt-2" Style="max-height: 50vh; overflow-y: auto">
                 @foreach (var match in _result.Matches)
                 {

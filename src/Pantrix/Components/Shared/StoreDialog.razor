@@ -1,6 +1,7 @@
 @inject IDbContextFactory<PantrixDbContext> DbFactory
 @inject AddressLookupService AddressLookup
 @inject IDialogService DialogService
+@inject StoreBrowserService Browser
 
 <MudDialog>
     <DialogContent>
@@ -67,6 +68,26 @@
                 <MudTextField @bind-Value="_searchUrl" Label="Website search address" Placeholder="https://www.example.com/search?q={item}" Class="mt-3"
                               Validation="_searchUrlValidation"
                               HelperText="Search for something on the store's website, copy the address of the results page, and put {item} where your search words were." />
+
+                @if (StoreCatalog.Find(_name) is { Locations: { } picker } known)
+                {
+                    <MudStack Row="true" AlignItems="AlignItems.Start" Class="mt-3">
+                        <MudTextField @bind-Value="_websiteStoreId" Label="@($"{known.Name} store number")" HelperText="@picker.Help"
+                                      Validation="_storeNumberValidation" />
+                        @if (_browserConnected)
+                        {
+                            <MudButton Class="mt-3" StartIcon="@Icons.Material.Filled.TravelExplore" OnClick="FindStoreNumberAsync" Disabled="_findingNumber">Find</MudButton>
+                        }
+                    </MudStack>
+                    @if (_findingNumber)
+                    {
+                        <MudProgressLinear Indeterminate="true" Class="mt-1" />
+                    }
+                    else if (_numberMessage is not null)
+                    {
+                        <MudText Typo="Typo.body2" Color="@(_numberFound ? Color.Success : Color.Warning)" Class="mt-1">@_numberMessage</MudText>
+                    }
+                }
             }
         </MudForm>
     </DialogContent>
@@ -97,6 +118,15 @@
     // Until someone picks a method themselves, it follows what Pantrix knows about the chain being typed.
     private bool _methodChosen;
 
+    private string? _websiteStoreId;
+    private bool _browserConnected;
+    private bool _findingNumber;
+    private bool _numberFound;
+    private string? _numberMessage;
+
+    private readonly Func<string?, string?> _storeNumberValidation = id =>
+        string.IsNullOrWhiteSpace(id) || StoreCatalog.CleanLocationId(id) is not null ? null : "Use just the number";
+
     private readonly Func<string?, string?> _searchUrlValidation = url =>
         StoreCatalog.BuildSearchUri(url, "test") is null ? "Enter an address that starts with https:// and contains {item}" : null;
 
@@ -105,8 +135,9 @@
     /// <summary>The store to edit, or null to create a new one.</summary>
     [Parameter] public Store? Store { get; set; }
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        _browserConnected = await Browser.GetAddressAsync() is not null;
         if (Store is not null)
         {
             _name = Store.Name;
@@ -117,6 +148,7 @@
             _postalCode = Store.PostalCode;
             _aisleSource = Store.AisleSource;
             _searchUrl = Store.SearchUrl;
+            _websiteStoreId = Store.WebsiteStoreId;
             _methodChosen = true;
             if (Store.OsmPlaceId is not null && Store.StreetAddress is not null)
             {
@@ -179,6 +211,29 @@
         }
     }
 
+    // Reads the chain's own store finder for the location at the address typed above.
+    private async Task FindStoreNumberAsync()
+    {
+        _findingNumber = true;
+        _numberMessage = null;
+        StateHasChanged();
+        try
+        {
+            var asTyped = new Store { Name = _name, StreetAddress = _streetAddress, City = _city, State = _state, PostalCode = _postalCode };
+            var (id, message) = await Browser.FindLocationAsync(asTyped);
+            _numberFound = id is not null;
+            _numberMessage = message;
+            if (id is not null)
+            {
+                _websiteStoreId = id;
+            }
+        }
+        finally
+        {
+            _findingNumber = false;
+        }
+    }
+
     private void OnAisleSourceChanged(AisleSource source)
     {
         _methodChosen = true;
@@ -214,7 +269,8 @@
             Latitude = place?.Latitude,
             Longitude = place?.Longitude,
             AisleSource = _aisleSource,
-            SearchUrl = _aisleSource == AisleSource.Browser ? Clean(_searchUrl) : null
+            SearchUrl = _aisleSource == AisleSource.Browser ? Clean(_searchUrl) : null,
+            WebsiteStoreId = _aisleSource == AisleSource.Browser ? StoreCatalog.CleanLocationId(_websiteStoreId) : null
         };
 
         await using var db = await DbFactory.CreateDbContextAsync();
