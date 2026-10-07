@@ -40,7 +40,8 @@
                     <MudText Typo="Typo.subtitle2">@store.DisplayName</MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary">@MethodReason(store, chain)</MudText>
                 </div>
-                @if (chain is null && store.AisleSource == AisleSource.Manual && _browserConnected)
+                @* Offered for known chains too: what Pantrix knows is a snapshot, and a site can start showing aisles. *@
+                @if (store.AisleSource == AisleSource.Manual && _browserConnected)
                 {
                     <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.TravelExplore" OnClick="@(() => CheckWebsiteAsync(store))">Check website</MudButton>
                 }
@@ -100,7 +101,7 @@
                     <MudButton StartIcon="@Icons.Material.Filled.TravelExplore" OnClick="@(() => LookUpAsync(store))"
                                Disabled="@(NewAisleFor(store).Ingredient is null)">Look up</MudButton>
                 }
-                else if (store.AisleSource == AisleSource.Manual && _browserConnected && StoreCatalog.Find(store.Name) is null)
+                else if (store.AisleSource == AisleSource.Manual && _browserConnected)
                 {
                     <MudTooltip Text="Find out whether this store's website shows aisles, so Pantrix can look them up">
                         <MudButton StartIcon="@Icons.Material.Filled.TravelExplore" OnClick="@(() => CheckWebsiteAsync(store))">Check website</MudButton>
@@ -192,8 +193,13 @@
     {
         if (chain is not null && chain.Source == store.AisleSource)
         {
-            return chain.Locations is not null && store.AisleSource == AisleSource.Browser && string.IsNullOrWhiteSpace(store.WebsiteStoreId)
-                ? $"No {chain.Name} store number yet, so lookups show whichever location the browser last used. Edit the store to add it."
+            if (chain.Source == AisleSource.Manual)
+            {
+                return chain.Notes + (_browserConnected ? " That was true when Pantrix was last updated; \"Check website\" tests it again." : "");
+            }
+
+            return chain.Locations is not null && string.IsNullOrWhiteSpace(store.WebsiteStoreId)
+                ? $"{chain.Notes} Its store number will be worked out from its address on the first lookup."
                 : chain.Notes;
         }
 
