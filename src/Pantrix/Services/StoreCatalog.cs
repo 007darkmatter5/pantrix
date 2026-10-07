@@ -25,8 +25,32 @@ public static class StoreCatalog
 
         new("Sam's Club", ["samsclub", "sams"], AisleSource.Manual, null, Tested: true,
             "The Sam's Club website doesn't show where items are in the club; only their phone app does. " +
-            "Enter aisles yourself as you shop.")
+            "Enter aisles yourself as you shop."),
+
+        new("Target", ["target"], AisleSource.Manual, null, Tested: true,
+            "Target's search results don't list aisles, and its site asks for a press-and-hold human check after a " +
+            "couple of automated page views. Enter aisles yourself as you shop.")
     ];
+
+    /// <summary>The word people are asked to search a store's website for when checking whether it shows aisles.</summary>
+    public const string SampleSearch = "milk";
+
+    /// <summary>
+    /// Turns the address of a results page for <see cref="SampleSearch"/> into a reusable search address, by
+    /// putting {item} where the search word was. Null when the address isn't https or doesn't contain the word.
+    /// </summary>
+    public static string? ToSearchAddress(string? resultsPageAddress)
+    {
+        var address = resultsPageAddress?.Trim() ?? "";
+        var at = address.LastIndexOf(SampleSearch, StringComparison.OrdinalIgnoreCase);
+        if (at < 0)
+        {
+            return null;
+        }
+
+        var template = address[..at] + "{item}" + address[(at + SampleSearch.Length)..];
+        return BuildSearchUri(template, SampleSearch) is null ? null : template;
+    }
 
     /// <summary>The chain a store belongs to, judged by its name, or null when it isn't one Pantrix knows.</summary>
     public static KnownChain? Find(string? storeName)

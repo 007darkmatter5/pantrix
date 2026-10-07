@@ -32,8 +32,10 @@ public class StoreBrowserService(HttpClient http, IDbContextFactory<PantrixDbCon
     private const string ReadAislesScript = """
         (() => {
           const body = document.body ? document.body.innerText : '';
-          const looksBlocked = /robot|captcha|access denied|pardon our interruption|verify you are human/i.test(document.title + ' ' + body.slice(0, 400));
-          if (looksBlocked && body.length < 2000) return JSON.stringify({ blocked: true, matches: [] });
+          const emptyChallenge = body.length < 2000 && /robot|captcha|access denied|pardon our interruption/i.test(document.title + ' ' + body.slice(0, 400));
+          // Some sites lay the check over the real page instead, so its wording has to be looked for everywhere.
+          const overlayChallenge = /press\s*(&|and)\s*hold|confirm you('|’)?re (a )?human|verify you are (a )?human|not a (ro)?bot\b/i.test(body);
+          if (emptyChallenge || overlayChallenge) return JSON.stringify({ blocked: true, matches: [] });
 
           const aisleText = /\bAisle\s+[A-Za-z0-9][^\n]{0,30}/i;
           const mentions = el => ((el.innerText || '').match(/\bAisle\s+[A-Za-z0-9]/gi) || []).length;
@@ -150,7 +152,9 @@ public class StoreBrowserService(HttpClient http, IDbContextFactory<PantrixDbCon
             {
                 await Task.Delay(TimeSpan.FromSeconds(attempt == 1 ? 3 : 2), timeout.Token);
                 reading = await ReadPageAsync(socket, attempt, timeout.Token);
-                if (reading is { Matches.Count: > 0 })
+
+                // A human check won't clear by waiting; say so straight away.
+                if (reading is { Matches.Count: > 0 } or { Blocked: true })
                 {
                     break;
                 }

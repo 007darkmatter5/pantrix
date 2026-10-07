@@ -19,6 +19,34 @@ public class StoreCatalogTests
     }
 
     [Theory]
+    [InlineData("https://www.heb.com/search?q=milk", "https://www.heb.com/search?q={item}")]
+    [InlineData("https://www.target.com/s?searchTerm=Milk&category=0", "https://www.target.com/s?searchTerm={item}&category=0")]
+    [InlineData("  https://shop.example.com/search/milk  ", "https://shop.example.com/search/{item}")]
+    public void A_pasted_results_page_becomes_a_reusable_search_address(string pasted, string expected)
+    {
+        Assert.Equal(expected, StoreCatalog.ToSearchAddress(pasted));
+    }
+
+    [Theory]
+    [InlineData("https://www.heb.com/search?q=eggs")]
+    [InlineData("http://www.heb.com/search?q=milk")]
+    [InlineData("milk")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void A_pasted_address_without_the_sample_word_or_not_https_is_refused(string? pasted)
+    {
+        Assert.Null(StoreCatalog.ToSearchAddress(pasted));
+    }
+
+    [Theory]
+    [InlineData("Target", "Target")]
+    [InlineData("Super Target", "Target")]
+    public void Target_is_a_known_chain(string storeName, string chain)
+    {
+        Assert.Equal(chain, StoreCatalog.Find(storeName)?.Name);
+    }
+
+    [Theory]
     [InlineData("Corner Market")]
     [InlineData("Whole Foods")]
     [InlineData("")]

@@ -1,0 +1,84 @@
+@inject StoreBrowserService Browser
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            This finds out whether @Store.Name's website shows aisles, so Pantrix can look them up for you.
+        </MudText>
+        <MudText Typo="Typo.body2"><b>1.</b> On @Store.Name's website, with your store location chosen, search for <b>@StoreCatalog.SampleSearch</b>.</MudText>
+        <MudText Typo="Typo.body2" Class="mb-2"><b>2.</b> Copy the address of the results page and paste it here.</MudText>
+
+        <MudTextField @bind-Value="_pasted" Label="Address of the results page" Placeholder="https://www.example.com/search?q=milk" Immediate="true" />
+        @if (_addressProblem is not null)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Error" Class="mt-1">@_addressProblem</MudText>
+        }
+
+        @if (_checking)
+        {
+            <MudProgressLinear Indeterminate="true" Class="mt-3" />
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">Opening that page in the connected browser. This can take up to half a minute.</MudText>
+        }
+        else if (_result is { Matches.Count: > 0 })
+        {
+            <MudAlert Severity="Severity.Success" Dense="true" Class="mt-3">
+                Aisles found for @_result.Matches.Count products, for example
+                "@_result.Matches[0].Name" in @AisleOrder.Title(_result.Matches[0].Aisle). Browser lookup works for this store.
+            </MudAlert>
+        }
+        else if (_result is not null)
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">
+                @_result.Error
+                If the store only shows aisles in its phone app, it has to stay manual.
+            </MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
+        @if (_result is { Matches.Count: > 0 })
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => MudDialog.Close(DialogResult.Ok(_searchAddress)))">Use browser lookup</MudButton>
+        }
+        else
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CheckAsync" Disabled="@(_checking || string.IsNullOrWhiteSpace(_pasted))">Check</MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private string? _pasted;
+    private string? _searchAddress;
+    private string? _addressProblem;
+    private bool _checking;
+    private AisleSearchResult? _result;
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter, EditorRequired] public Store Store { get; set; } = null!;
+
+    private async Task CheckAsync()
+    {
+        _result = null;
+        _searchAddress = StoreCatalog.ToSearchAddress(_pasted);
+        _addressProblem = _searchAddress is null
+            ? $"That needs to be an https:// address with the word \"{StoreCatalog.SampleSearch}\" in it, as it appears after searching for it."
+            : null;
+        if (_searchAddress is null)
+        {
+            return;
+        }
+
+        _checking = true;
+        StateHasChanged();
+        try
+        {
+            // Tried against a copy, so nothing about the store changes unless the check succeeds and is accepted.
+            _result = await Browser.SearchAsync(new Store { Name = Store.Name, SearchUrl = _searchAddress }, StoreCatalog.SampleSearch);
+        }
+        finally
+        {
+            _checking = false;
+        }
+    }
+}

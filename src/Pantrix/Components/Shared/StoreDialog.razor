@@ -49,6 +49,13 @@
                     Pantrix knows @chain.Name: @StoreCatalog.Describe(chain.Source).ToLowerInvariant(). @chain.Notes
                 </MudAlert>
             }
+            else if (!string.IsNullOrWhiteSpace(_name))
+            {
+                <MudAlert Severity="Severity.Normal" Dense="true" Class="mt-1">
+                    Pantrix doesn't know this store, so it starts as manual. After saving, "Check website" on the Stores page
+                    can find out whether its site shows aisles.
+                </MudAlert>
+            }
             <MudSelect T="AisleSource" Value="_aisleSource" ValueChanged="OnAisleSourceChanged" Label="Method" Class="mt-2">
                 @foreach (var source in Enum.GetValues<AisleSource>())
                 {
