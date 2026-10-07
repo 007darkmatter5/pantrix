@@ -100,6 +100,12 @@
                     <MudButton StartIcon="@Icons.Material.Filled.TravelExplore" OnClick="@(() => LookUpAsync(store))"
                                Disabled="@(NewAisleFor(store).Ingredient is null)">Look up</MudButton>
                 }
+                else if (store.AisleSource == AisleSource.Manual && _browserConnected && StoreCatalog.Find(store.Name) is null)
+                {
+                    <MudTooltip Text="Find out whether this store's website shows aisles, so Pantrix can look them up">
+                        <MudButton StartIcon="@Icons.Material.Filled.TravelExplore" OnClick="@(() => CheckWebsiteAsync(store))">Check website</MudButton>
+                    </MudTooltip>
+                }
             </MudItem>
         </MudGrid>
 
