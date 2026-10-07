@@ -32,7 +32,11 @@
 
         @if (manual.Count > 0)
         {
-            <MudText Typo="Typo.overline">Manual: you type the aisles in</MudText>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
+                <MudIcon Icon="@Icons.Material.Filled.EditNote" />
+                <MudText Typo="Typo.h6">Manual</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">You type the aisles in yourself.</MudText>
+            </MudStack>
             @foreach (var store in manual)
             {
                 <MudStack @key="store.Id" Row="true" AlignItems="AlignItems.Center" Spacing="2">
@@ -55,7 +59,11 @@
 
         @if (browser.Count > 0)
         {
-            <MudText Typo="Typo.overline">Browser lookup: read from the store's website</MudText>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
+                <MudIcon Icon="@Icons.Material.Filled.TravelExplore" Color="Color.Primary" />
+                <MudText Typo="Typo.h6" Color="Color.Primary">Browser lookup</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">Pantrix reads the aisles from the store's website.</MudText>
+            </MudStack>
             @foreach (var store in browser)
             {
                 <MudStack @key="store.Id" Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="py-1">
