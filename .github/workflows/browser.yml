@@ -80,7 +80,8 @@ jobs:
           base = "http://pantrix-browser:9223"
           host = {"Host": "localhost"}
           tab = requests.put(base + "/json/new?https://example.com/", headers=host, timeout=20).json()
-          ws = websocket.create_connection("ws://pantrix-browser:9223/devtools/page/" + tab["id"], host="localhost", timeout=30)
+          # No Origin header, like Pantrix: Chromium refuses control connections that claim to come from a web page.
+          ws = websocket.create_connection("ws://pantrix-browser:9223/devtools/page/" + tab["id"], host="localhost", suppress_origin=True, timeout=30)
           ws.send(json.dumps({"id": 1, "method": "Runtime.evaluate", "params": {"expression": "6 * 7", "returnByValue": True}}))
           while True:
               reply = json.loads(ws.recv())
