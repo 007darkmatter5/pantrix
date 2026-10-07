@@ -122,6 +122,48 @@ public sealed class ShoppingListServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Ingredients_that_are_always_on_hand_are_never_shopped_for()
+    {
+        await using (var db = _factory.CreateDbContext())
+        {
+            var water = new Ingredient { Name = "Water", DefaultUnit = Unit.Cup, AlwaysOnHand = true };
+
+            // A minimum left over from before it was marked always on hand must not bring it back.
+            var salt = new Ingredient { Name = "Salt", DefaultUnit = Unit.Teaspoon, AlwaysOnHand = true, MinimumQuantity = 5 };
+            var broth = new Ingredient { Name = "Broth", DefaultUnit = Unit.Cup };
+            var rice = new Ingredient { Name = "Rice", DefaultUnit = Unit.Cup };
+
+            var pilaf = new Recipe
+            {
+                Name = "Pilaf",
+                Servings = 4,
+                Ingredients =
+                [
+                    new RecipeIngredient { Ingredient = rice, Quantity = 2, Unit = Unit.Cup },
+                    new RecipeIngredient { Ingredient = water, Quantity = 4, Unit = Unit.Cup },
+                    new RecipeIngredient { Ingredient = salt, Quantity = 1, Unit = Unit.Teaspoon },
+
+                    // Broth isn't in stock, but water can stand in for it and there is always water.
+                    new RecipeIngredient
+                    {
+                        Ingredient = broth, Quantity = 1, Unit = Unit.Cup,
+                        Alternatives = [new RecipeIngredientAlternative { Ingredient = water }]
+                    }
+                ]
+            };
+
+            db.Add(Plan(
+                new MealPlanEntry { Recipe = pilaf, Date = Today, Servings = 4 },
+                new MealPlanEntry { Ingredient = water, Date = Today, Quantity = 1, Unit = Unit.Bottle }));
+            await db.SaveChangesAsync();
+        }
+
+        await _service.SyncAutomaticItemsAsync();
+
+        Assert.Equal(["Rice: 2 cup (auto)"], Assert.Single(await ListsAsync()));
+    }
+
+    [Fact]
     public async Task Eating_out_needs_no_groceries()
     {
         await using (var db = _factory.CreateDbContext())

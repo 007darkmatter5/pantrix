@@ -12,8 +12,17 @@
                           HelperText="The specific product, e.g. brand and variety. Shown on shopping lists next to the name." />
             <EnumSelect TEnum="IngredientCategory" @bind-Value="_category" Label="Category" Class="mt-3" />
             <EnumSelect TEnum="Unit" @bind-Value="_defaultUnit" Label="Default unit" Class="mt-3" />
-            <MudNumericField T="decimal?" @bind-Value="_minimumQuantity" Label="Keep at least" Min="0" Step="1" Clearable="true" Class="mt-3"
-                             HelperText="In the default unit. Shopping lists top this up when inventory falls below it. Leave blank for no minimum." />
+            <MudCheckBox T="bool" @bind-Value="_alwaysOnHand" Color="Color.Primary" Class="mt-2">
+                Always on hand: never put this on a shopping list
+            </MudCheckBox>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="display: block; margin-left: 42px; margin-top: -8px">
+                For things like water, salt and pepper. It can still be used in recipes.
+            </MudText>
+            @if (!_alwaysOnHand)
+            {
+                <MudNumericField T="decimal?" @bind-Value="_minimumQuantity" Label="Keep at least" Min="0" Step="1" Clearable="true" Class="mt-3"
+                                 HelperText="In the default unit. Shopping lists top this up when inventory falls below it. Leave blank for no minimum." />
+            }
 
             @if (_stores.Count > 0)
             {
@@ -80,6 +89,7 @@
     private IngredientCategory _category = IngredientCategory.Other;
     private Unit _defaultUnit = Unit.Each;
     private decimal? _minimumQuantity;
+    private bool _alwaysOnHand;
     private List<Store> _stores = [];
     private bool _browserConnected;
 
@@ -107,6 +117,7 @@
             _category = Ingredient.Category;
             _defaultUnit = Ingredient.DefaultUnit;
             _minimumQuantity = Ingredient.MinimumQuantity;
+            _alwaysOnHand = Ingredient.AlwaysOnHand;
             foreach (var record in await db.StoreAisles.AsNoTracking().Where(a => a.IngredientId == Ingredient.Id).ToListAsync())
             {
                 _entries[record.StoreId] = new StoreEntry { Aisle = record.Aisle, ProductUrl = record.ProductUrl };
@@ -166,7 +177,8 @@
             ProductName = string.IsNullOrWhiteSpace(_productName) ? null : _productName.Trim(),
             Category = _category,
             DefaultUnit = _defaultUnit,
-            MinimumQuantity = _minimumQuantity > 0 ? _minimumQuantity : null
+            MinimumQuantity = !_alwaysOnHand && _minimumQuantity > 0 ? _minimumQuantity : null,
+            AlwaysOnHand = _alwaysOnHand
         };
 
         await using var db = await DbFactory.CreateDbContextAsync();

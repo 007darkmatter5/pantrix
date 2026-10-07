@@ -30,4 +30,10 @@ public class Ingredient : IKitchenOwned
 
     /// <summary>Amount to keep on hand, in <see cref="DefaultUnit"/>. Null when the ingredient isn't restocked automatically.</summary>
     public decimal? MinimumQuantity { get; set; }
+
+    /// <summary>
+    /// True for things a kitchen never runs out of or never buys, like water or salt. They can be used in
+    /// recipes but are never put on a shopping list, whatever the inventory says.
+    /// </summary>
+    public bool AlwaysOnHand { get; set; }
 }

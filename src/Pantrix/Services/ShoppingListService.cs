@@ -25,19 +25,24 @@ public class ShoppingListService(IDbContextFactory<PantrixDbContext> dbFactory)
             .AsSplitQuery()
             .ToListAsync();
 
+        // A need is already met when the ingredient, or anything that can stand in for it, is always on hand.
+        bool AlwaysOnHand(IngredientNeed need) =>
+            need.Alternatives.Prepend(need.IngredientId).Any(id => ingredients[id].AlwaysOnHand);
+
         var needed = entries.SelectMany(entry => entry.Recipe is { } recipe
-            ? recipe.Ingredients.Select(ri => new IngredientNeed(
-                ri.IngredientId,
-                ri.Quantity * entry.Servings / Math.Max(1, recipe.Servings),
-                ri.Unit,
-                ri.Alternatives.Select(a => a.IngredientId).ToList()))
-            : [new IngredientNeed(entry.IngredientId!.Value, entry.Quantity, entry.Unit)]);
+                ? recipe.Ingredients.Select(ri => new IngredientNeed(
+                    ri.IngredientId,
+                    ri.Quantity * entry.Servings / Math.Max(1, recipe.Servings),
+                    ri.Unit,
+                    ri.Alternatives.Select(a => a.IngredientId).ToList()))
+                : [new IngredientNeed(entry.IngredientId!.Value, entry.Quantity, entry.Unit)])
+            .Where(need => !AlwaysOnHand(need));
 
         var onHand = (await db.InventoryItems.AsNoTracking().ToListAsync())
             .Select(i => new IngredientAmount(i.IngredientId, i.Quantity, i.Unit));
 
         var minimums = ingredients.Values
-            .Where(i => i.MinimumQuantity > 0)
+            .Where(i => i.MinimumQuantity > 0 && !i.AlwaysOnHand)
             .Select(i => new IngredientAmount(i.Id, i.MinimumQuantity!.Value, i.DefaultUnit));
 
         var wanted = ShoppingListBuilder.ComputeShortfall(needed, onHand, minimums)

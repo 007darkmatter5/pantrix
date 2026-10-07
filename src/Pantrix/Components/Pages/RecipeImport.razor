@@ -110,6 +110,9 @@ else
                                     <MudTextField @bind-Value="row.NewName" Label="New ingredient's name" Required="true" RequiredError="Give it a name" />
                                     <EnumSelect TEnum="IngredientCategory" @bind-Value="row.NewCategory" Label="Category" />
                                 </MudStack>
+                                <MudCheckBox T="bool" @bind-Value="row.NewAlwaysOnHand" Color="Color.Primary" Dense="true">
+                                    Always on hand: never put it on a shopping list
+                                </MudCheckBox>
                                 break;
 
                             case Decision.Skip:
@@ -171,6 +174,7 @@ else
         public Ingredient? Existing { get; set; }
         public string? NewName { get; set; }
         public IngredientCategory NewCategory { get; set; } = IngredientCategory.Other;
+        public bool NewAlwaysOnHand { get; set; }
         public IReadOnlyList<Ingredient> Similar { get; init; } = [];
     }
 
@@ -362,7 +366,7 @@ else
                 var name = row.NewName!.Trim();
                 if (!created.TryGetValue(name, out var ingredient))
                 {
-                    ingredient = created[name] = new Ingredient { Name = name, Category = row.NewCategory, DefaultUnit = row.Unit };
+                    ingredient = created[name] = new Ingredient { Name = name, Category = row.NewCategory, DefaultUnit = row.Unit, AlwaysOnHand = row.NewAlwaysOnHand };
                 }
 
                 line.Ingredient = ingredient;

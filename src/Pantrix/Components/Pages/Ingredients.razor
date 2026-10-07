@@ -35,7 +35,18 @@
         </MudTd>
         <MudTd>@context.Category.Humanize()</MudTd>
         <MudTd Class="d-none d-sm-table-cell">@context.DefaultUnit.Humanize()</MudTd>
-        <MudTd>@(context.MinimumQuantity is { } minimum ? Units.Format(minimum, context.DefaultUnit) : "")</MudTd>
+        <MudTd>
+            @if (context.AlwaysOnHand)
+            {
+                <MudTooltip Text="Always on hand: never put on a shopping list">
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">On hand</MudChip>
+                </MudTooltip>
+            }
+            else if (context.MinimumQuantity is { } minimum)
+            {
+                @Units.Format(minimum, context.DefaultUnit)
+            }
+        </MudTd>
         <MudTd Style="text-align: right; white-space: nowrap">
             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditAsync(context))" aria-label="Edit" />
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" aria-label="Delete" />
