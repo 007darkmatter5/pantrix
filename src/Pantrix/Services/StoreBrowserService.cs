@@ -151,6 +151,24 @@ public class StoreBrowserService(HttpClient http, IDbContextFactory<PantrixDbCon
             return new([], "This store needs a search address that starts with https:// and contains {item}.");
         }
 
+        // A store that doesn't have its location number yet gets it now, from its address, and keeps it: nobody
+        // should have to set that up by hand before their first lookup.
+        var chain = StoreCatalog.Find(store.Name);
+        if (chain?.Locations is not null && StoreCatalog.CleanLocationId(store.WebsiteStoreId) is null)
+        {
+            var (found, _) = await FindLocationAsync(store, cancellationToken);
+            if (found is not null)
+            {
+                store.WebsiteStoreId = found;
+                if (store.Id != 0)
+                {
+                    await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+                    await db.Stores.Where(s => s.Id == store.Id)
+                        .ExecuteUpdateAsync(s => s.SetProperty(x => x.WebsiteStoreId, found), cancellationToken);
+                }
+            }
+        }
+
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(PageTimeout);
         try
@@ -160,7 +178,6 @@ public class StoreBrowserService(HttpClient http, IDbContextFactory<PantrixDbCon
             // Aisles differ between a chain's locations, so tell the site which one this store is before searching.
             // Without a number the site falls back on whichever location the browser used last, often the nearest.
             string? notice = null;
-            var chain = StoreCatalog.Find(store.Name);
             if (chain?.Locations is { } picker)
             {
                 if (StoreCatalog.CleanLocationId(store.WebsiteStoreId) is { } locationId)
@@ -170,7 +187,7 @@ public class StoreBrowserService(HttpClient http, IDbContextFactory<PantrixDbCon
                 }
                 else
                 {
-                    notice = $"This store has no {chain.Name} store number, so these aisles are for whichever location the browser last used. Edit the store to add its number.";
+                    notice = $"Pantrix couldn't work out which {chain.Name} location this is from its address, so these aisles are for whichever location the browser last used. Edit the store to check its address or enter its store number.";
                 }
             }
 
