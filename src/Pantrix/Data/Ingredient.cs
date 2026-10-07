@@ -13,6 +13,8 @@ public enum IngredientCategory
     Spices,
     Condiments,
     Beverages,
+    Snacks,
+    Household,
     Other
 }
 

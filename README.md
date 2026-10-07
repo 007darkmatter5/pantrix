@@ -4,7 +4,7 @@
 
 A self-hosted kitchen planner: recipes, what's in the fridge and pantry, meal plans, and a shopping list that writes itself from the three.
 
-- **Recipes and ingredients.** Recipes scale by servings. An ingredient line can accept substitutes ("penne or elbow pasta"), and an ingredient can record the exact product you usually buy.
+- **Recipes and items.** Recipes scale by servings and can be imported from a web page. An ingredient line can accept substitutes ("penne or elbow pasta"). Items are anything you buy and keep, from flour to snacks to paper towels, and can record the exact product you usually buy.
 - **Inventory.** What you have in the refrigerator, freezer and pantry, with expiry dates and a "keep at least" amount per ingredient.
 - **Meal plans.** Put a recipe, a single ingredient (a packaged meal), or "eating out" on each day, and close out days as you finish planning them.
 - **A live shopping list.** Always current: what upcoming meals need, plus anything below its minimum, less what's in inventory. Add your own items too.

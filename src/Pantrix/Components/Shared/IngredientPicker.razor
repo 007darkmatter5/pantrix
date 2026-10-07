@@ -1,12 +1,12 @@
 <MudAutocomplete T="Ingredient" Value="Value" ValueChanged="ValueChanged" Label="@Label" SearchFunc="SearchAsync"
-                 ToStringFunc="@(i => i?.Name ?? "")" Required="true" RequiredError="Pick an ingredient"
+                 ToStringFunc="@(i => i?.Name ?? "")" Required="true" RequiredError="Pick an item"
                  ResetValueOnEmptyText="true" MaxItems="50" Class="@Class" />
 
 @code {
     [Parameter] public Ingredient? Value { get; set; }
     [Parameter] public EventCallback<Ingredient?> ValueChanged { get; set; }
     [Parameter, EditorRequired] public IReadOnlyList<Ingredient> Ingredients { get; set; } = [];
-    [Parameter] public string? Label { get; set; } = "Ingredient";
+    [Parameter] public string? Label { get; set; } = "Item";
     [Parameter] public string? Class { get; set; }
 
     private Task<IEnumerable<Ingredient>> SearchAsync(string? text, CancellationToken cancellationToken)

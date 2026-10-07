@@ -36,7 +36,7 @@ else if (_list is not null)
         <MudGrid Spacing="2" Class="align-end">
             <MudItem xs="12" md="5">
                 <MudAutocomplete T="string" Value="_newName" ValueChanged="OnNewNameChanged" Text="@_newName" TextChanged="OnNewNameChanged"
-                                 Label="Add an item" Placeholder="Pick an ingredient or type something new"
+                                 Label="Add an item" Placeholder="Pick one of your items or type something new"
                                  SearchFunc="SearchIngredientsAsync" CoerceValue="true" MaxItems="50" />
             </MudItem>
             <MudItem xs="4" md="2">
@@ -52,7 +52,7 @@ else if (_list is not null)
             {
                 <MudItem xs="12" md="7">
                     <MudCheckBox T="bool" @bind-Value="_saveAsIngredient" Color="Color.Primary" Dense="true">
-                        Save "@_newName.Trim()" as an ingredient so I can pick it next time
+                        Save "@_newName.Trim()" as an item so I can pick it next time
                     </MudCheckBox>
                 </MudItem>
                 @if (_saveAsIngredient)

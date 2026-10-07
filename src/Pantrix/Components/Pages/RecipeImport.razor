@@ -75,7 +75,7 @@ else
                 }
             </MudStack>
             <MudText Typo="Typo.body2" Class="mud-text-secondary mb-2">
-                Nothing is added to your ingredients until you save. For each line, choose one of yours, create a new one, or leave it out.
+                Nothing is added to your items until you save. For each line, choose one of yours, create a new one, or leave it out.
             </MudText>
 
             @foreach (var row in _rows)
@@ -90,7 +90,7 @@ else
                         <EnumSelect TEnum="Unit" @bind-Value="row.Unit" Label="Unit" />
                     </MudItem>
                     <MudItem xs="12" md="3">
-                        <MudSelect T="Decision" Value="row.Decision" ValueChanged="@(d => row.Decision = d)" Label="Ingredient"
+                        <MudSelect T="Decision" Value="row.Decision" ValueChanged="@(d => row.Decision = d)" Label="Item"
                                    Error="@(row.Decision == Decision.Undecided)" RelativeWidth="DropdownWidth.Adaptive">
                             <MudSelectItem T="Decision" Value="Decision.Undecided">Choose…</MudSelectItem>
                             <MudSelectItem T="Decision" Value="Decision.Existing">Use one of mine</MudSelectItem>
@@ -107,7 +107,7 @@ else
 
                             case Decision.New:
                                 <MudStack Row="true">
-                                    <MudTextField @bind-Value="row.NewName" Label="New ingredient's name" Required="true" RequiredError="Give it a name" />
+                                    <MudTextField @bind-Value="row.NewName" Label="New item&apos;s name" Required="true" RequiredError="Give it a name" />
                                     <EnumSelect TEnum="IngredientCategory" @bind-Value="row.NewCategory" Label="Category" />
                                 </MudStack>
                                 <MudCheckBox T="bool" @bind-Value="row.NewAlwaysOnHand" Color="Color.Primary" Dense="true">
@@ -206,7 +206,7 @@ else
             var created = _rows!.Count(r => r.Decision == Decision.New);
             return undecided > 0
                 ? $"{undecided} of {_rows!.Count} still to decide"
-                : created == 0 ? "No new ingredients will be created" : $"{created} new {(created == 1 ? "ingredient" : "ingredients")} will be created";
+                : created == 0 ? "No new items will be created" : $"{created} new {(created == 1 ? "item" : "items")} will be created";
         }
     }
 
@@ -335,7 +335,7 @@ else
             .FirstOrDefault(i => i is not null);
         if (clash is not null)
         {
-            Snackbar.Add($"You already have an ingredient called \"{clash.Name}\". Choose \"Use one of mine\" for that line, or give the new one a different name.", Severity.Warning);
+            Snackbar.Add($"You already have an item called \"{clash.Name}\". Choose \"Use one of mine\" for that line, or give the new one a different name.", Severity.Warning);
             return;
         }
 
@@ -378,7 +378,7 @@ else
         db.Recipes.Add(recipe);
         await db.SaveChangesAsync();
 
-        Snackbar.Add(created.Count == 0 ? "Recipe imported." : $"Recipe imported, with {created.Count} new {(created.Count == 1 ? "ingredient" : "ingredients")}.", Severity.Success);
+        Snackbar.Add(created.Count == 0 ? "Recipe imported." : $"Recipe imported, with {created.Count} new {(created.Count == 1 ? "item" : "items")}.", Severity.Success);
         Navigation.NavigateTo($"recipes/{recipe.Id}");
     }
 }

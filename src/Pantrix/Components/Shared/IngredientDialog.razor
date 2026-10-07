@@ -184,7 +184,7 @@
         await using var db = await DbFactory.CreateDbContextAsync();
         if (await db.Ingredients.AnyAsync(i => i.Name == saved.Name && i.Id != saved.Id))
         {
-            Snackbar.Add($"An ingredient named \"{saved.Name}\" already exists.", Severity.Error);
+            Snackbar.Add($"An item named \"{saved.Name}\" already exists.", Severity.Error);
             return;
         }
 

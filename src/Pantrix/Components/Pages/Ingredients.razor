@@ -1,15 +1,16 @@
+@page "/items"
 @page "/ingredients"
 @inject IDbContextFactory<PantrixDbContext> DbFactory
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-<PageTitle>Ingredients</PageTitle>
+<PageTitle>Items</PageTitle>
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
-    <MudText Typo="Typo.h4">Ingredients</MudText>
+    <MudText Typo="Typo.h4">Items</MudText>
     <MudSpacer />
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-               OnClick="@(() => EditAsync(null))">Add ingredient</MudButton>
+               OnClick="@(() => EditAsync(null))">Add item</MudButton>
 </MudStack>
 
 <MudTable Breakpoint="Breakpoint.None" Items="_ingredients" Filter="Matches" Hover="true" Dense="true">
@@ -53,7 +54,7 @@
         </MudTd>
     </RowTemplate>
     <NoRecordsContent>
-        <MudText>No ingredients yet.</MudText>
+        <MudText>No items yet.</MudText>
     </NoRecordsContent>
 </MudTable>
 
@@ -78,7 +79,7 @@
     private async Task EditAsync(Ingredient? ingredient)
     {
         var parameters = new DialogParameters<IngredientDialog> { { d => d.Ingredient, ingredient } };
-        var dialog = await DialogService.ShowAsync<IngredientDialog>(ingredient is null ? "Add ingredient" : "Edit ingredient", parameters);
+        var dialog = await DialogService.ShowAsync<IngredientDialog>(ingredient is null ? "Add item" : "Edit item", parameters);
         var result = await dialog.Result;
         if (result is { Canceled: false })
         {
@@ -89,7 +90,7 @@
     private async Task DeleteAsync(Ingredient ingredient)
     {
         var confirmed = await DialogService.ShowMessageBoxAsync(
-            "Delete ingredient", $"Delete \"{ingredient.Name}\"? It will also be removed from your inventory.",
+            "Delete item", $"Delete \"{ingredient.Name}\"? It will also be removed from your inventory.",
             yesText: "Delete", cancelText: "Cancel");
         if (confirmed != true)
         {

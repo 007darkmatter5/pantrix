@@ -48,7 +48,7 @@
         <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
             <MudText Typo="Typo.h6">Ingredients</MudText>
             <MudSpacer />
-            <MudButton StartIcon="@Icons.Material.Filled.Egg" OnClick="CreateIngredientAsync">New ingredient</MudButton>
+            <MudButton StartIcon="@Icons.Material.Filled.Egg" OnClick="CreateIngredientAsync">New item</MudButton>
             <MudButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _rows.Add(new Row()))">Add row</MudButton>
         </MudStack>
 
@@ -166,7 +166,7 @@
 
     private async Task CreateIngredientAsync()
     {
-        var dialog = await DialogService.ShowAsync<IngredientDialog>("Add ingredient");
+        var dialog = await DialogService.ShowAsync<IngredientDialog>("Add item");
         var result = await dialog.Result;
         if (result is { Canceled: false, Data: Ingredient ingredient })
         {
