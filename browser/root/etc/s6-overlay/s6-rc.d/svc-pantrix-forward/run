@@ -1,0 +1,4 @@
+#!/usr/bin/with-contenv bash
+# Chromium only listens for remote control on 127.0.0.1, whatever it is told. Pass connections from other
+# containers on to it, so Pantrix can reach the browser over a shared Docker network.
+exec socat TCP-LISTEN:9223,fork,reuseaddr TCP:127.0.0.1:9222

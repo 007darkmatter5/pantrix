@@ -77,56 +77,48 @@ Lookups happen only when someone presses **Look up**, one page at a time. If a s
 says so and you complete it in the browser yourself; it doesn't try to get past it. Automated use may be against a
 store's terms, and a site can change or block it at any time, so treat this as a convenience, not a guarantee.
 
-A browser container for Unraid (Compose Manager) or any Docker host. It shares a private Docker network with Pantrix,
-so the port that controls the browser is reachable by Pantrix and nothing else:
+The browser is a second, optional container, **Pantrix Browser**: a Chromium with a screen you can open from another
+computer, set up so that Pantrix can drive it. On Unraid, install it from Community Applications next to Pantrix. The
+two must share a Docker network of their own, so that only Pantrix can reach the port that controls the browser:
 
 ```bash
 docker network create pantrix
 ```
 
+On Unraid, then set **Network Type** to `pantrix` on both containers. With Compose:
+
 ```yaml
 services:
   pantrix-browser:
-    image: lscr.io/linuxserver/chromium:latest
+    image: ghcr.io/007darkmatter5/pantrix-browser:latest
     container_name: pantrix-browser
     restart: unless-stopped
     shm_size: "1gb"
-    security_opt:
-      - seccomp:unconfined
     environment:
       PUID: "99"
       PGID: "100"
-      CHROME_CLI: "--remote-debugging-port=9222"
-      # A sign-in for the browser's screen. Set both; the browser may be signed in to your store accounts.
+      # A sign-in for the browser's screen. Set both: the screen includes a terminal, and the browser may be
+      # signed in to your store accounts.
       CUSTOM_USER: "choose-a-username"
       PASSWORD: "choose-a-password"
     ports:
-      - "3011:3001"   # the browser's screen (https)
+      - "3011:3001"   # the browser's screen (https). The control port, 9223, is deliberately not published.
     networks:
       - pantrix
     volumes:
       - /mnt/user/appdata/pantrix-browser:/config
-
-  # Chrome only listens for remote control on its own loopback address; this passes the port on, inside the
-  # private network only. It is deliberately not listed under "ports".
-  pantrix-browser-port:
-    image: alpine/socat
-    container_name: pantrix-browser-port
-    restart: unless-stopped
-    network_mode: "service:pantrix-browser"
-    command: TCP-LISTEN:9223,fork,reuseaddr TCP:127.0.0.1:9222
 
 networks:
   pantrix:
     external: true
 ```
 
-1. Put Pantrix on the same network: in its Unraid template set **Network Type** to `pantrix` (or add
-   `networks: [pantrix]` to its Compose service).
-2. Open `https://<host>:3011`, go to each store's website in that browser, and choose your store location.
-3. In Pantrix, on the Admin page, enter `http://pantrix-browser:9223` as the browser address and press Test.
-4. Give a store the **Browser lookup** method (H-E-B gets it automatically). **Look up** then appears on the Stores
-   page and in the ingredient dialog.
+1. Open `https://<host>:3011` (accept the self-signed certificate), go to each store's website in that browser, and
+   choose your store location.
+2. In Pantrix, on the Admin page, enter `http://pantrix-browser:9223` as the browser address and press Test.
+3. Give a store the **Browser lookup** method (H-E-B gets it automatically). **Look up** then appears on the Stores
+   page and in the ingredient dialog. For a store Pantrix doesn't know, **Check website** on the Stores page finds out
+   whether its site shows aisles.
 
 ### Signing in to store accounts
 

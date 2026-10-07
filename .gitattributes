@@ -4,3 +4,6 @@
 *.sh text eol=lf
 Dockerfile text eol=lf
 VERSION text eol=lf
+
+# Files copied into the browser image run on Linux and must keep LF line endings.
+browser/** text eol=lf

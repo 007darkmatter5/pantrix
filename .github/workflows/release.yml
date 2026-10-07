@@ -6,8 +6,8 @@ name: Release
 on:
   push:
     branches: [main, beta]
-    # Docs and the license don't change the image.
-    paths-ignore: ['**.md', 'LICENSE', 'docs/**']
+    # Docs, the license and the separate browser image don't change this image.
+    paths-ignore: ['**.md', 'LICENSE', 'docs/**', 'browser/**', '.github/workflows/browser.yml']
   workflow_dispatch:
 
 concurrency:

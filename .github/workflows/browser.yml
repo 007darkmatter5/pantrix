@@ -1,0 +1,119 @@
+name: Browser image
+
+# Builds Pantrix Browser, the optional Chromium container Pantrix drives to look aisles up on store websites.
+# beta branch -> image tags "beta" and "<version>-beta"
+# main branch -> image tags "production", "latest" and "<version>"
+on:
+  push:
+    branches: [main, beta]
+    paths: ['browser/**', '.github/workflows/browser.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: browser-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/pantrix-browser
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Work out version and tags
+        id: meta
+        run: |
+          base=$(tr -d '[:space:]' < VERSION)
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            version="$base.$GITHUB_RUN_NUMBER"
+            echo "tags=$IMAGE:$version,$IMAGE:production,$IMAGE:latest" >> "$GITHUB_OUTPUT"
+          else
+            version="$base.$GITHUB_RUN_NUMBER-beta"
+            echo "tags=$IMAGE:$version,$IMAGE:beta" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # The image installs a package in its final stage, so the arm64 build runs under emulation.
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build image for smoke test
+        uses: docker/build-push-action@v7
+        with:
+          context: browser
+          platforms: linux/amd64
+          load: true
+          tags: pantrix-browser:smoke
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+          cache-from: type=gha,scope=browser-${{ github.ref_name }}
+
+      # Start it the way Pantrix uses it: on a shared network, with the control port not published, and reached
+      # by container name. Chromium refuses its control port to any name but "localhost", so every request says so.
+      - name: Smoke test
+        run: |
+          set -eu
+          docker network create pantrix
+          docker run -d --name pantrix-browser --network pantrix --shm-size=1gb -e PUID=99 -e PGID=100 pantrix-browser:smoke
+          curl_in() { docker run --rm --network pantrix curlimages/curl:latest -sS -m 10 -H "Host: localhost" "$@"; }
+
+          ok=""
+          for i in $(seq 1 90); do
+            if curl_in -f http://pantrix-browser:9223/json/version > version.json 2>/dev/null; then ok=1; break; fi
+            sleep 2
+          done
+          [ -n "$ok" ] || { echo "The browser's control port never answered"; docker logs pantrix-browser; exit 1; }
+          cat version.json
+          grep -q '"Browser"' version.json
+
+          # Open a tab and run something in it over the same route Pantrix takes, websocket included.
+          docker run --rm --network pantrix python:3-slim sh -c '
+            pip install --quiet --root-user-action=ignore websocket-client requests >/dev/null &&
+            python - <<PY
+          import json, requests, websocket
+          base = "http://pantrix-browser:9223"
+          host = {"Host": "localhost"}
+          tab = requests.put(base + "/json/new?https://example.com/", headers=host, timeout=20).json()
+          ws = websocket.create_connection("ws://pantrix-browser:9223/devtools/page/" + tab["id"], host="localhost", timeout=30)
+          ws.send(json.dumps({"id": 1, "method": "Runtime.evaluate", "params": {"expression": "6 * 7", "returnByValue": True}}))
+          while True:
+              reply = json.loads(ws.recv())
+              if reply.get("id") == 1:
+                  break
+          value = reply["result"]["result"]["value"]
+          assert value == 42, reply
+          requests.get(base + "/json/close/" + tab["id"], headers=host, timeout=20)
+          print("Ran a script in a tab through the forwarded control port:", value)
+          PY
+          '
+
+          # The screen people use to sign in to stores and pass human checks.
+          docker run --rm --network pantrix curlimages/curl:latest -sS -m 15 -o /dev/null -w 'screen: %{http_code}\n' http://pantrix-browser:3000/ | tee screen.txt
+          grep -qE 'screen: (200|301|302|401)' screen.txt
+
+          docker rm -f pantrix-browser
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: browser
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=browser-${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=browser-${{ github.ref_name }}
