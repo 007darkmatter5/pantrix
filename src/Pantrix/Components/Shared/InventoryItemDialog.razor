@@ -39,7 +39,7 @@
     protected override async Task OnInitializedAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
-        _ingredients = await db.Ingredients.AsNoTracking().OrderBy(i => i.Name).ToListAsync();
+        _ingredients = await db.Ingredients.AsNoTracking().Where(i => !i.AlwaysOnHand).OrderBy(i => i.Name).ToListAsync();
 
         if (Item is not null)
         {

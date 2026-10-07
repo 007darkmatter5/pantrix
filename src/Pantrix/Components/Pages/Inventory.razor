@@ -63,7 +63,7 @@
     private async Task LoadAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
-        _items = await db.InventoryItems.AsNoTracking().Include(i => i.Ingredient).OrderBy(i => i.Ingredient.Name).ToListAsync();
+        _items = await db.InventoryItems.AsNoTracking().Include(i => i.Ingredient).Where(i => !i.Ingredient.AlwaysOnHand).OrderBy(i => i.Ingredient.Name).ToListAsync();
     }
 
     private bool Matches(InventoryItem item) =>

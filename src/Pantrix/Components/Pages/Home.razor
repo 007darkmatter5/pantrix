@@ -51,7 +51,7 @@ else
         _tiles =
         [
             new Tile("Recipes", await db.Recipes.CountAsync(), "recipes"),
-            new Tile("Inventory items", await db.InventoryItems.CountAsync(), "inventory"),
+            new Tile("Inventory items", await db.InventoryItems.CountAsync(i => !i.Ingredient.AlwaysOnHand), "inventory"),
             new Tile("Meal plans", await db.MealPlans.CountAsync(), "meal-plans"),
             new Tile("Shopping lists", await db.ShoppingLists.CountAsync(), "shopping-lists")
         ];
@@ -59,7 +59,7 @@ else
         var cutoff = _today.AddDays(7);
         _expiring = await db.InventoryItems.AsNoTracking()
             .Include(i => i.Ingredient)
-            .Where(i => i.ExpiresOn != null && i.ExpiresOn <= cutoff)
+            .Where(i => i.ExpiresOn != null && i.ExpiresOn <= cutoff && !i.Ingredient.AlwaysOnHand)
             .OrderBy(i => i.ExpiresOn)
             .ToListAsync();
     }

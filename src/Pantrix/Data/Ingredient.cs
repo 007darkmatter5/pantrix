@@ -33,7 +33,7 @@ public class Ingredient : IKitchenOwned
 
     /// <summary>
     /// True for things a kitchen never runs out of or never buys, like water or salt. They can be used in
-    /// recipes but are never put on a shopping list, whatever the inventory says.
+    /// recipes but are never put on a shopping list and are left out of the inventory.
     /// </summary>
     public bool AlwaysOnHand { get; set; }
 }
