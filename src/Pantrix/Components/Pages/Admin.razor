@@ -25,14 +25,14 @@ else if (_loaded)
 
     <MudPaper Class="pa-4 mb-4">
         <MudText Typo="Typo.h6">Browser for aisle lookups</MudText>
-        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
-            Some stores show aisles on their website but turn away anything that isn't a real browser. Run a Chrome container next to
-            Pantrix with its remote-control port open, enter its address here, then open that browser once to visit each store's site
-            and choose your store. Pantrix only uses it when someone presses "Look up". Leave blank to switch lookups off.
+        <MudText Typo="Typo.body2" Class="mud-text-secondary mb-2">
+            Lets Pantrix look aisles up on store websites, using the Pantrix-Browser container. Enter the address of its
+            <b>control port, 9223</b>. This is not the port you open to see the browser's screen. Leave blank to switch lookups off.
         </MudText>
         <MudGrid Spacing="2" Class="align-end">
             <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_browserAddress" Label="Browser address" Placeholder="http://192.168.1.10:9222" />
+                <MudTextField @bind-Value="_browserAddress" Label="Browser address" Placeholder="http://Pantrix-Browser:9223"
+                              HelperText="With both containers on the same Docker network, use the browser container's name. A Chrome on a PC started with --remote-debugging-port uses that port instead, usually 9222." />
             </MudItem>
             <MudItem xs="12" sm="6">
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveBrowserAsync">Save</MudButton>
