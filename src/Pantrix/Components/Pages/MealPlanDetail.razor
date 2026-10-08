@@ -4,6 +4,7 @@
 @inject ShoppingListService ShoppingLists
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>@(_plan?.Name ?? "Meal plan")</PageTitle>
 
@@ -17,20 +18,36 @@ else if (_plan is not null)
         <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="meal-plans" aria-label="Back to meal plans" />
         <MudText Typo="Typo.h4">@_plan.Name</MudText>
         <MudSpacer />
+        <MudSwitch T="bool" Value="_pastDaysLast" ValueChanged="SetPastDaysLastAsync" Color="Color.Primary">Past days last</MudSwitch>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ShoppingCart"
                    OnClick="ViewShoppingListAsync">View shopping list</MudButton>
     </MudStack>
 
     var closedHeadingShown = false;
-    @foreach (var day in DaysOpenFirst())
+    var pastHeadingShown = false;
+    var anyDayShown = false;
+    @foreach (var day in DaysInViewOrder())
     {
         var closed = _plan.ClosedDates.Contains(day);
         var entries = _plan.Entries.Where(e => e.Date == day).OrderBy(e => e.MealType).ToList();
-        if (closed && !closedHeadingShown)
+        if (IsPast(day))
+        {
+            if (!pastHeadingShown)
+            {
+                pastHeadingShown = true;
+                if (anyDayShown)
+                {
+                    <MudDivider Class="mt-6" />
+                }
+                <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mt-6 mb-2">Past</MudText>
+            }
+        }
+        else if (closed && !closedHeadingShown)
         {
             closedHeadingShown = true;
             <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mt-6 mb-2">Closed out</MudText>
         }
+        anyDayShown = true;
 
         <MudPaper @key="day" Class="pa-4 mb-3" Style="@(closed ? "opacity: 0.7" : null)">
             <MudStack Row="true" AlignItems="AlignItems.Center">
@@ -87,8 +104,12 @@ else if (_plan is not null)
 }
 
 @code {
+    private const string PastDaysLastKey = "pantrix.mealPlan.pastDaysLast";
+
+    private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.Today);
     private MealPlan? _plan;
     private bool _notFound;
+    private bool _pastDaysLast;
 
     [Parameter] public int Id { get; set; }
 
@@ -104,12 +125,50 @@ else if (_plan is not null)
         _notFound = _plan is null;
     }
 
-    // Dates still being planned come first; closed-out dates follow, each group in calendar order.
-    private IEnumerable<DateOnly> DaysOpenFirst()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            _pastDaysLast = await JS.InvokeAsync<string?>("localStorage.getItem", PastDaysLastKey) == "true";
+        }
+        catch (JSException)
+        {
+            // Storage can be blocked (e.g. private browsing); the plan still shows in its usual order.
+        }
+
+        if (_pastDaysLast)
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task SetPastDaysLastAsync(bool pastDaysLast)
+    {
+        _pastDaysLast = pastDaysLast;
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", PastDaysLastKey, pastDaysLast ? "true" : "false");
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    // Only the "past days last" view sets past days apart; otherwise they sit with the rest.
+    private bool IsPast(DateOnly day) => _pastDaysLast && day < _today;
+
+    // Dates still being planned come first, then closed-out dates, then (when asked for) dates already gone by,
+    // each group in calendar order.
+    private IEnumerable<DateOnly> DaysInViewOrder()
     {
         var days = Enumerable.Range(0, _plan!.EndDate.DayNumber - _plan.StartDate.DayNumber + 1)
             .Select(_plan.StartDate.AddDays);
-        return days.OrderBy(_plan.ClosedDates.Contains);
+        return days.OrderBy(day => IsPast(day) ? 2 : _plan.ClosedDates.Contains(day) ? 1 : 0);
     }
 
     private async Task SetClosedAsync(DateOnly date, bool closed)
